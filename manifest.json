@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "habitica-task-integration",
+	"name": "Habitica Task Integration",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Integrates Habitica tasks with Obsidian Tasks plugin.",
+	"author": "GammaThought",
+	"authorUrl": "https://www.github.com/gamma2653",
+	"fundingUrl": "https://www.buymeacoffee.com/gamma2653",
 	"isDesktopOnly": false
 }
