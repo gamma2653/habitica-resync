@@ -68,17 +68,17 @@ class HabiticaClient {
 	 * @param fn The function to call when the rate limit allows it.
 	 * @returns A promise that resolves to the result of the function.
 	 */
-	async callWhenRateLimitAllows<T>(fn: () => Promise<T>): Promise<T> {
+	async callWhenRateLimitAllows(fn: () => Promise<Response>): Promise<HabiticaResponse> {
 		// If we have remaining requests, call the function immediately
 		if (this.remainingRequests > 0) {
 			console.log("callWhenRateLimitAllows: Remaining requests available, calling function immediately.");
-			return fn();
+			return fn().then(this._handleResponse);
 		}
 		// If we don't have remaining requests, wait until the reset time and resolve then.
 		if (this.nextResetTime && this.nextResetTime > new Date()) {
 			console.log(`callWhenRateLimitAllows: No remaining requests, waiting until reset time at ${this.nextResetTime.toISOString()} (${this.nextResetTime}).`);
 			const waitTime = this.nextResetTime.getTime() - new Date().getTime();
-			return new Promise<T>((resolve) => {
+			return new Promise<HabiticaResponse>((resolve) => {
 				setTimeout(() => {
 					// Recursively call this function after waiting to ensure rate limit is respected
 					this.callWhenRateLimitAllows(fn).then(resolve);
@@ -87,7 +87,7 @@ class HabiticaClient {
 		}
 		console.log("!!! callWhenRateLimitAllows: No reset time available, calling function immediately.");
 		// If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
-		return fn();
+		return fn().then(this._handleResponse);
 	}
 
 	async _handleResponse(response: Response): Promise<HabiticaResponse> {
@@ -127,7 +127,7 @@ class HabiticaClient {
 		console.log(`Using headers: ${JSON.stringify(headers)}`);
 		// First retrieve data, then parse response
 		return this.callWhenRateLimitAllows(() =>
-			fetch(url, { headers }).then(response => this._handleResponse(response))
+			fetch(url, { headers })
 		).then((data: HabiticaResponse) => {
 			// Presume failure is caught by _handleResponse
 			return data.data as HabiticaTask[];
@@ -151,7 +151,6 @@ class HabiticaClient {
 		console.log(`Creating task in Habitica: ${url}`);
 		return this.callWhenRateLimitAllows(() =>
 			fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
-				.then(response => this._handleResponse(response))
 		).then((data: HabiticaResponse) => {
 			// Presume failure is caught by _handleResponse
 			return data.data as HabiticaTask;
