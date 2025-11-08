@@ -1,8 +1,8 @@
 import type { App } from 'obsidian';
 import { Notice, Editor, Plugin, PluginSettingTab, Setting, MarkdownView, TFolder } from 'obsidian';
-import type { HabiticaTasksSettings, HabiticaTaskRequest, HabiticaTask, HabiticaResponse, HabiticaTaskMap, TaskType } from './types';
-import { ExcludedTaskTypes, TaskTypes } from './types';
-import { organizeHabiticaTasksByType, taskToNoteLines } from './util';
+import type { HabiticaTasksSettings, HabiticaTaskRequest, HabiticaTask, HabiticaResponse, HabiticaTaskMap, TaskType } from './habitica-resync/types';
+import { ExcludedTaskTypes, TaskTypes } from './habitica-resync/types';
+import { organizeHabiticaTasksByType, taskToNoteLines, log } from './habitica-resync/util';
 
 
 const DEFAULT_SETTINGS: HabiticaTasksSettings = {
@@ -11,7 +11,9 @@ const DEFAULT_SETTINGS: HabiticaTasksSettings = {
 	apiKey: '',
 	rateLimitBuffer: 10000, // 10 second buffer
 	habiticaFolderPath: 'HabiticaTasks',
-	indentString: '    '
+	indentString: '    ',
+	enableNotes: true,
+	enablePane: false
 }
 
 const HABITICA_SIDE_PLUGIN_ID = 'habitica-x-obsidian-task-integration';
@@ -24,10 +26,10 @@ const DEVELOPER_USER_ID = 'a8e40d27-c872-493f-acf2-9fe75c56ac0c'  // Itssa me, G
  * Interfaces with the Habitica API while respecting rate limits.
  */
 class HabiticaClient {
-	plugin: HabiticaTasksIntegration;
+	plugin: HabiticaResyncPlugin;
 	remainingRequests: number = 30;
 	nextResetTime: Date | null = null;
-	constructor(plugin: HabiticaTasksIntegration) {
+	constructor(plugin: HabiticaResyncPlugin) {
 		// Initialize with settings
 		this.plugin = plugin;
 
@@ -69,16 +71,17 @@ class HabiticaClient {
 	 * If there are no remaining requests, it waits until the next reset time plus a buffer before calling the function.
 	 * @param fn The function to call when the rate limit allows it.
 	 * @returns A promise that resolves to the result of the function.
+	 * @throws An error if the function call fails.
 	 */
 	async callWhenRateLimitAllows(fn: () => Promise<Response>): Promise<HabiticaResponse> {
 		// If we have remaining requests, call the function immediately
 		if (this.remainingRequests > 0) {
-			console.log("callWhenRateLimitAllows: Remaining requests available, calling function immediately.");
+			log("callWhenRateLimitAllows: Remaining requests available, calling function immediately.");
 			return fn().then(this._handleResponse.bind(this));
 		}
 		// If we don't have remaining requests, wait until the reset time and resolve then.
 		if (this.nextResetTime && this.nextResetTime > new Date()) {
-			console.log(`callWhenRateLimitAllows: No remaining requests, waiting until reset time at ${this.nextResetTime.toISOString()} (${this.nextResetTime}).`);
+			log(`callWhenRateLimitAllows: No remaining requests, waiting until reset time at ${this.nextResetTime.toISOString()} (${this.nextResetTime}).`);
 			const waitTime = this.nextResetTime.getTime() - new Date().getTime();
 			return new Promise<HabiticaResponse>((resolve) => {
 				setTimeout(() => {
@@ -87,17 +90,22 @@ class HabiticaClient {
 				}, waitTime + this.settings().rateLimitBuffer);
 			});
 		}
-		console.log("!!! callWhenRateLimitAllows: No reset time available, calling function immediately.");
+		log("!!! callWhenRateLimitAllows: No reset time available, calling function immediately.");
 		// If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
 		return fn().then(this._handleResponse.bind(this));
 	}
 
+	/**
+	 * Handles the response from the Habitica API.
+	 * @param response The response from the API.
+	 * @returns A promise that resolves to the parsed HabiticaResponse.
+	 * @throws An error if the response is not ok or if the API indicates failure.
+	 */
 	async _handleResponse(response: Response): Promise<HabiticaResponse> {
 		// Check response headers for rate limiting info
-		console.log(`this: `, this);
 		this.remainingRequests = parseInt(response.headers.get('x-ratelimit-remaining') || this.remainingRequests?.toString() || '30');
 		this.nextResetTime = new Date(response.headers.get('x-ratelimit-reset') || this.nextResetTime?.toISOString() || new Date().toISOString());
-		console.log(`Rate Limit - Remaining: ${this.remainingRequests}, Next Reset Time: ${this.nextResetTime}`);
+		log(`Rate Limit - Remaining: ${this.remainingRequests}, Next Reset Time: ${this.nextResetTime}`);
 		// Check if response is ok & successful
 		if (!response.ok) {
 			throw new Error(`HTTP error (Is Habitica API down?); status: ${response.status}, statusText: ${response.statusText}`);
@@ -126,7 +134,7 @@ class HabiticaClient {
 		};
 		const url = this.buildApiUrl('tasks/user', 3, queryParams);
 		const headers = this._defaultJSONHeaders();
-		console.log(`Fetching tasks from Habitica: ${url}`);
+		log(`Fetching tasks from Habitica: ${url}`);
 
 		// First retrieve data, then parse response
 		return this.callWhenRateLimitAllows(() =>
@@ -151,7 +159,7 @@ class HabiticaClient {
 	// 	// Create a new task in Habitica
 	// 	const url = this.buildApiUrl('tasks/user', 3);
 	// 	const headers = this._defaultJSONHeaders();
-	// 	console.log(`Creating task in Habitica: ${url}`);
+	// 	log(`Creating task in Habitica: ${url}`);
 
 	// 	return this.callWhenRateLimitAllows(() =>
 	// 		fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
@@ -167,31 +175,20 @@ class HabiticaClient {
  * 
  * Handles plugin lifecycle, settings, and UI integration.
  */
-export default class HabiticaTasksIntegration extends Plugin {
+export default class HabiticaResyncPlugin extends Plugin {
 	settings: HabiticaTasksSettings;
 	client: HabiticaClient;
 	functioning: boolean = true;
 	nonFunctionalReason: string = '';
-
+	lastFunctionalNotice: Date | null = null;
+	tasksPlugin: Plugin | null = null;
 
 	attachRibbonButton() {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('swords', PLUGIN_NAME, async (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice(`${PLUGIN_NAME} icon clicked. Retrieving tasks...`);
-			this.client.retrieveAllTasks().then(
-				async (taskMap: HabiticaTaskMap) => {
-					console.log('Retrieved all tasks organized by type:', taskMap);
-					const folderPath = this.getOrCreateHabiticaFolder();
-					await this.createHabiticaNotes();
-					console.log('Folder path:', folderPath);
-					// Process the taskMap as needed
-					new Notice(`Retrieved tasks organized by type. Check ${folderPath} for files.`);
-				}
-			).catch(async (error) => {
-				console.error('Error retrieving tasks from Habitica:', error);
-				new Notice(`Error retrieving tasks from Habitica: ${error.message}`);
-			});
+			await this.retrieveHabiticaNotes();
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('habitica-task-btn');
@@ -202,29 +199,34 @@ export default class HabiticaTasksIntegration extends Plugin {
 		return function(this: any, ...args: Parameters<T>): ReturnType<T> | void {
 			if (!plugin.functioning) {
 				console.warn(`Plugin is not functioning: ${plugin.nonFunctionalReason}`);
-				new Notice(`${PLUGIN_NAME} is not functioning properly. Please check the console for errors.`);
+				if (!plugin.lastFunctionalNotice || (new Date().getTime() - plugin.lastFunctionalNotice.getTime()) > 60000) {
+					new Notice(`${PLUGIN_NAME} is not functioning: ${plugin.nonFunctionalReason}\nCheck the console for more details.`);
+					plugin.lastFunctionalNotice = new Date();
+				}
 				return;
 			}
 			return fn.apply(this, args);
 		} as T;
 	}
 
-	async createHabiticaNotes() {
+	async retrieveHabiticaNotes() {
 		const folderPath = this.getOrCreateHabiticaFolder();
 		// Create files
 		const habiticaTasks = await this.client.retrieveAllTasks();
-		for (const [type, tasks] of Object.entries(habiticaTasks)) {
+		for (const [type_, tasks] of Object.entries(habiticaTasks)) {
 			// Skip ignored types
-			if (tasks.length === 0 || ExcludedTaskTypes.has(type as TaskType)) {  // Surprised TypeScript allows this cast
+			if (tasks.length === 0 || ExcludedTaskTypes.has(type_ as TaskType)) {  // Surprised TypeScript allows this cast
 				continue;
 			}
-			const fileName = `${type}.md`;
+			const fileName = `${type_}.md`;
 			const filePath = `${folderPath}/${fileName}`;
 			const file = this.app.vault.getFileByPath(filePath);
 			if (!file) {
+				// Create new file
 				await this.app.vault.create(filePath, tasks.map(task => taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
 			} else {
-				await this.app.vault.modify(file, tasks.map(task => taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
+				// Overwrite existing file
+				await this.app.vault.process(file, _ => tasks.map(task => taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
 			}
 		}
 	}
@@ -281,7 +283,7 @@ export default class HabiticaTasksIntegration extends Plugin {
 			id: 'sample-editor-command',
 			name: 'Sample editor command',
 			editorCallback: this.runOrNotify((editor: Editor, _view: MarkdownView) => {
-				console.log(editor.getSelection());
+				log(editor.getSelection());
 				editor.replaceSelection('Sample Editor Command');
 			})
 		});
@@ -319,28 +321,14 @@ export default class HabiticaTasksIntegration extends Plugin {
 	 * 
 	 * Throws an error if `this.app.plugins` cannot be accessed.
 	 */
-	registerInternals() {
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new HabiticaTasksSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		// this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-		// 	console.log('click', evt);
-		// });
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-		// Detect Tasks plugin
+	detectTasksPlugin() {
 		this.app.workspace.onLayoutReady(() => {
 			// Access plugins manager via type assertion since it's not in the public API
 			try {
-				const tasksPlugin: Plugin = (this.app as any).plugins.getPlugin('obsidian-tasks-plugin');
-				// You can check if tasksPlugin is loaded and enabled here
-				console.log('Tasks plugin:', tasksPlugin);
+				this.tasksPlugin = (this.app as any).plugins.getPlugin('obsidian-tasks-plugin');
 			} catch (error) {
-				throw new Error('Failed to access plugins manager: ' + error);
+				console.error('Error accessing plugins manager to detect Tasks plugin:', error);
+				this.tasksPlugin = null;
 			}
 		});
 	}
@@ -351,7 +339,8 @@ export default class HabiticaTasksIntegration extends Plugin {
 		this.attachRibbonButton();
 		this.attachStatusBar();
 		this.attachCommands();
-		this.registerInternals();
+		this.addSettingTab(new HabiticaResyncSettingTab(this.app, this));
+		this.detectTasksPlugin();
 		this.client = new HabiticaClient(this);
 	}
 
@@ -359,20 +348,39 @@ export default class HabiticaTasksIntegration extends Plugin {
 
 	}
 
+	determineFunctionality() {
+		this.nonFunctionalReason = '';
+		const reasons: string[] = [];
+		// Determine if the plugin can function based on settings
+		if (!this.settings.userId || this.settings.userId.trim() === '') {
+			reasons.push('Missing Habitica User ID in settings');
+		}
+		if (!this.settings.apiKey || this.settings.apiKey.trim() === '') {
+			reasons.push('Missing Habitica API Key in settings');
+		}
+		if (this.settings.enableNotes && (!this.settings.habiticaFolderPath || this.settings.habiticaFolderPath.trim() === '')) {
+			reasons.push('Missing Habitica Folder Path in settings, required for the notes feature');
+		}
+		this.functioning = reasons.length === 0;
+		this.nonFunctionalReason = reasons.join('; ');
+	}
+
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.determineFunctionality();
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.determineFunctionality();
 		this.getOrCreateHabiticaFolder();
 	}
 }
 
-class HabiticaTasksSettingTab extends PluginSettingTab {
-	plugin: HabiticaTasksIntegration;
+class HabiticaResyncSettingTab extends PluginSettingTab {
+	plugin: HabiticaResyncPlugin;
 
-	constructor(app: App, plugin: HabiticaTasksIntegration) {
+	constructor(app: App, plugin: HabiticaResyncPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -451,6 +459,34 @@ class HabiticaTasksSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					value = value.trim();
 					this.plugin.settings.globalTaskTag = (value === '' ? undefined : value);
+					await this.plugin.saveSettings();
+				}));
+		new Setting(containerEl)
+			.setName('Enable Notes')
+			.setDesc('Enable creating and syncing notes for Habitica tasks')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableNotes)
+				.onChange(async (value) => {
+					this.plugin.settings.enableNotes = value;
+					await this.plugin.saveSettings();
+				}));
+		new Setting(containerEl)
+			.setName('Enable Pane')
+			.setDesc('Enable the Habitica Tasks pane in the sidebar')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enablePane)
+				.onChange(async (value) => {
+					this.plugin.settings.enablePane = value;
+					await this.plugin.saveSettings();
+				}));
+		new Setting(containerEl)
+			.setName('Indent String')
+			.setDesc('String used for indentation in notes')
+			.addText(text => text
+				.setPlaceholder('Enter indent string')
+				.setValue(this.plugin.settings.indentString)
+				.onChange(async (value) => {
+					this.plugin.settings.indentString = value;
 					await this.plugin.saveSettings();
 				}));
 

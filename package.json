@@ -2,7 +2,7 @@
 	"name": "habitica-resync",
 	"version": "0.1.0",
 	"description": "This is a plugin to integrate Habitica tasks with the Obsidian Tasks plugin.",
-	"main": "main.js",
+	"main": "habitica-resync/main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",

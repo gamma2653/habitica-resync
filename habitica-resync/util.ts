@@ -1,4 +1,6 @@
 import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings as HabiticaTaskSettings } from './types';
+import { TaskTypes, ExcludedTaskTypes } from './types';
+// import { version as VERSION } from './manifest.json';
 
 /**
  * Utility function for debugging.
@@ -45,15 +47,22 @@ const _coalesceObjectKeyTypes = (objects: Record<string, string>[]): Record<stri
     return coalesced;
 }
 
+
+
+const VERSION = "";
+
+export const log = (message: string, ...optionalParams: any[]) => {
+    console.log(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
+}
+
 export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTaskMap => {
     const taskMap: HabiticaTaskMap = {
-        habits: [],
-        dailys: [],
-        todos: [],
-        rewards: [],
-        completedTodos: []
+        habit: [],
+        daily: [],
+        todo: [],
+        reward: [],
+        completedTodo: []
     };
-
     for (const task of tasks) {
         if (task.type in taskMap) {
             taskMap[task.type].push(task);
@@ -80,10 +89,10 @@ export const checklistPartForTask = (task: HabiticaTask, settings: HabiticaTaskS
 }
 
 const isDue = (task: HabiticaTask): boolean => {
-    if (task.type === 'dailys') {
+    if (task.type === 'daily') {
         return task.isDue || false;
     }
-    if (task.type === 'todos' && task.date) {
+    if (task.type === 'todo' && task.date) {
         // Check nextDue
         if (task.nextDue) {
             const today = new Date().toISOString().split('T')[0];
@@ -98,9 +107,9 @@ const isDue = (task: HabiticaTask): boolean => {
 };
 
 const taskDueDate = (task: HabiticaTask): string => {
-    if (task.type === 'dailys') {
+    if (task.type === 'daily') {
         return `📅 ${new Date().toISOString().split('T')[0]}`;
-    } else if (task.type === 'todos' && task.date) {
+    } else if (task.type === 'todo' && task.date) {
         return `📅 ${new Date(task.date).toISOString().split('T')[0]}`;
     }
     // Check nextDue

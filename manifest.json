@@ -1,9 +1,9 @@
 {
-	"id": "habitica-task-integration",
-	"name": "Habitica Task Integration",
+	"id": "habitica-resync",
+	"name": "Habitica Resync",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Integrates Habitica tasks with Obsidian Tasks plugin.",
+	"description": "Synchronizes Habitica tasks with notes or via a separate pane.",
 	"author": "GammaThought",
 	"authorUrl": "https://www.github.com/gamma2653",
 	"fundingUrl": "https://www.buymeacoffee.com/gamma2653",

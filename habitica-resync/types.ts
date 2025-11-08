@@ -7,6 +7,8 @@ export interface HabiticaTasksSettings {
 	habiticaFolderPath: string; // Optional folder path for Habitica tasks
 	globalTaskTag?: string; // Optional global tag for all Habitica tasks
 	indentString: string
+	enableNotes: boolean; // Whether to enable notes syncing
+	enablePane: boolean; // Whether to enable the Habitica pane in Obsidian
 }
 
 export type HabiticaTask = {
@@ -61,17 +63,17 @@ export type HabiticaTask = {
 }
 
 export const TaskTypes = {
-	habits: 'habits',
-	dailys: 'dailys',
-	todos: 'todos',
-	rewards: 'rewards',
-	completedTodos: 'completedTodos'
+	habit: 'habit',
+	daily: 'daily',
+	todo: 'todo',
+	reward: 'reward',
+	completedTodo: 'completedTodo'
 } as const;
 export type TaskType = typeof TaskTypes[keyof typeof TaskTypes];
 export type HabiticaTaskMap = {
 	[key in TaskType]: HabiticaTask[];
 }
-export const ExcludedTaskTypes: Set<TaskType> = new Set(['completedTodos', 'rewards']);
+export const ExcludedTaskTypes: Set<TaskType> = new Set(['completedTodo', 'reward']);
 
 export type HabiticaResponse = {
 	success: boolean;
