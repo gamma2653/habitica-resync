@@ -69,7 +69,7 @@ class HabiticaClient {
 	 * Calls the provided function when the rate limit allows it.
 	 * If there are remaining requests, it calls the function immediately.
 	 * If there are no remaining requests, it waits until the next reset time plus a buffer before calling the function.
-	 * @param fn The function to call when the rate limit allows it.
+	 * @param fn The function to call when the rate limit allows it. This function should return a promise that resolves to a Response.
 	 * @returns A promise that resolves to the result of the function.
 	 * @throws An error if the function call fails.
 	 */
