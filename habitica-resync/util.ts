@@ -55,6 +55,14 @@ export const log = (message: string, ...optionalParams: any[]) => {
     console.log(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
 }
 
+export const warn = (message: string, ...optionalParams: any[]) => {
+    console.warn(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
+}
+
+export const error = (message: string, ...optionalParams: any[]) => {
+    console.error(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
+}
+
 export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTaskMap => {
     const taskMap: HabiticaTaskMap = {
         habit: [],

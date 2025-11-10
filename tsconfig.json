@@ -15,8 +15,9 @@
       "DOM",
       "ESNext"
     ],
+    "jsx": "react-jsx"
   },
   "include": [
     "**/*.ts"
-  ]
+, "habitica-resync/react/mounting.tsx"  ]
 }

@@ -62,14 +62,16 @@ export type HabiticaTask = {
 	_id: string
 }
 
-export const TaskTypes = {
-	habit: 'habit',
-	daily: 'daily',
-	todo: 'todo',
-	reward: 'reward',
-	completedTodo: 'completedTodo'
-} as const;
-export type TaskType = typeof TaskTypes[keyof typeof TaskTypes];
+// export const TaskTypes = {
+// 	habit: 'habit',
+// 	daily: 'daily',
+// 	todo: 'todo',
+// 	reward: 'reward',
+// 	completedTodo: 'completedTodo'
+// } as const;
+export const TaskTypes = ['habit', 'daily', 'todo', 'reward', 'completedTodo'] as const;
+// export type TaskType = typeof TaskTypes[keyof typeof TaskTypes];
+export type TaskType = typeof TaskTypes[number];
 export type HabiticaTaskMap = {
 	[key in TaskType]: HabiticaTask[];
 }
@@ -83,4 +85,15 @@ export type HabiticaResponse = {
 export interface HabiticaTaskRequest {
 	type?: TaskType;
 	dueDate?: Date;
+}
+
+
+export interface HabiticaAPI {
+	retrieveTasks(ctx?: HabiticaTaskRequest): Promise<HabiticaTask[]>;
+	retrieveAllTasks(): Promise<HabiticaTaskMap>;
+	// createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null>;
+}
+
+export interface ContextView {
+	new (leaf: any, ctx: any): ContextView;
 }
