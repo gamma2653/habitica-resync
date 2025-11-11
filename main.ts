@@ -98,7 +98,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 		const habiticaTasks = await this.client.retrieveAllTasks();
 		for (const [type_, tasks] of Object.entries(habiticaTasks)) {
 			// Skip ignored types
-			if (tasks.length === 0 || types.ExcludedTaskTypes.has(type_ as types.TaskType)) {  // Surprised TypeScript allows this cast
+			if (tasks.length === 0 || types.EXCLUDED_TASK_TYPES.has(type_ as types.TaskType)) {  // Surprised TypeScript allows this cast
 				continue;
 			}
 			const fileName = `${type_}.md`;
@@ -131,8 +131,8 @@ export default class HabiticaResyncPlugin extends Plugin {
 	getHabiticaFiles() {
 		const folderPath = this.getOrCreateHabiticaFolder();
 		const habiticaFiles: Record<types.TaskType, string> = {} as Record<types.TaskType, string>;
-		for (const type of Object.values(types.TaskTypes)) {
-			if (types.ExcludedTaskTypes.has(type)) {
+		for (const type of Object.values(types.TASK_TYPES)) {
+			if (types.EXCLUDED_TASK_TYPES.has(type)) {
 				continue;
 			}
 			habiticaFiles[type] = `${folderPath}/${type}.md`;
@@ -147,7 +147,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 			const file = this.app.vault.getFileByPath(filePath);
 			if (file) {
 				const content = await this.app.vault.read(file);
-				// Push content to Habitica
+				// TODO: Push content to Habitica
 			}
 		}
 	}

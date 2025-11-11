@@ -7,7 +7,7 @@ export const HabiticaResyncApp = () => {
   return (
     <div>
       <h3>Habitica Resync</h3>
-      {/*  */}
+      <p>Syncing with Habitica...</p>
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import type { HabiticaAPI, HabiticaResponse, HabiticaTask, HabiticaTaskRequest, HabiticaTaskMap } from './types';
-import { organizeHabiticaTasksByType, log } from './util';
+import type { HabiticaAPI, HabiticaResponse, HabiticaTask, HabiticaTaskRequest, HabiticaTaskMap, HabiticaApiEvent, SubscriberID } from './types';
+import { organizeHabiticaTasksByType, log, newSubscriberEntry } from './util';
 import type HabiticaResyncPlugin from '../main';
 
 const HABITICA_SIDE_PLUGIN_ID = 'habitica-x-obsidian-task-integration';
@@ -13,6 +13,12 @@ export class HabiticaClient implements HabiticaAPI {
     plugin: HabiticaResyncPlugin | null = null;
     remainingRequests: number = 30;
     nextResetTime: Date | null = null;
+    eventListeners: Record<HabiticaApiEvent, Record<SubscriberID, Set<(...args: any[]) => void>>> = {
+        todoUpdated: newSubscriberEntry(),
+        dailyUpdated: newSubscriberEntry(),
+        habitUpdated: newSubscriberEntry(),
+        taskUpdated: newSubscriberEntry()
+    };
     constructor(plugin: HabiticaResyncPlugin) {
         // Initialize with settings
         this.plugin = plugin;
@@ -24,6 +30,55 @@ export class HabiticaClient implements HabiticaAPI {
             throw new Error('HabiticaClient is not bound to a plugin instance.');
         }
         return this.plugin.settings;
+    }
+
+    /**
+     * Subscribe to Habitica API events.
+     * @param event The event to subscribe to.
+     * @param subscriber_id The subscriber ID to use.
+     * @param listener The listener function to call when the event is triggered.
+     */
+    subscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void {
+        // Subscribe to Habitica API events
+        if (event in this.eventListeners) {
+            this.eventListeners[event as HabiticaApiEvent][subscriber_id].add(listener);
+        } else {
+            throw new Error(`Unsupported event type: ${event}`);
+        }
+    }
+
+    /**
+     * Unsubscribe from Habitica API events.
+     * @param event The event to unsubscribe from.
+     * @param subscriber_id The subscriber ID to use.
+     * @param listener The listener function to remove.
+     */
+    unsubscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void {
+        // Unsubscribe from Habitica API events
+        if (event in this.eventListeners) {
+            this.eventListeners[event as HabiticaApiEvent][subscriber_id].delete(listener);
+        } else {
+            throw new Error(`Unsupported event type: ${event}`);
+        }
+    }
+
+    /**
+     * Perform the callback while unsubscribing from all events, then resubscribe.
+     * Useful for performing an operation without triggering event listeners, ie during a bulk sync OR
+     * to avoid infinite loops.
+     * @param event The event to unsubscribe from.
+     * @param subscriber_id The subscriber ID to unsubscribe.
+     * @param fn The function to execute while unsubscribed.
+     */
+    async performWhileUnsubscribed(event: string, subscriber_id: SubscriberID, fn: () => Promise<void>): Promise<void> {
+        const listeners = this.eventListeners[event as HabiticaApiEvent][subscriber_id];
+        for (const listener of listeners) {
+            this.unsubscribe(event, subscriber_id, listener);
+        }
+        await fn();
+        for (const listener of listeners) {
+            this.subscribe(event, subscriber_id, listener);
+        }
     }
 
     /**
@@ -63,7 +118,7 @@ export class HabiticaClient implements HabiticaAPI {
     async callWhenRateLimitAllows(fn: () => Promise<Response>): Promise<HabiticaResponse> {
         // If we have remaining requests, call the function immediately
         if (this.remainingRequests > 0) {
-            log("callWhenRateLimitAllows: Remaining requests available, calling function immediately.");
+            log("callWhenRateLimitAllows: Remaining requests available, making request immediately.");
             return fn().then(this._handleResponse.bind(this));
         }
         // If we don't have remaining requests, wait until the reset time and resolve then.
@@ -77,7 +132,7 @@ export class HabiticaClient implements HabiticaAPI {
                 }, waitTime + this.settings().rateLimitBuffer);
             });
         }
-        log("!!! callWhenRateLimitAllows: No reset time available, calling function immediately.");
+        log("!!! callWhenRateLimitAllows: No reset time available, making request immediately.");
         // If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
         return fn().then(this._handleResponse.bind(this));
     }
@@ -127,7 +182,7 @@ export class HabiticaClient implements HabiticaAPI {
         return this.callWhenRateLimitAllows(() =>
             fetch(url, { method: 'GET', headers })
         ).then((data: HabiticaResponse) => {
-            // Presume failure is caught by _handleResponse
+            // Presume failure is caught by _handleResponse; cast as appropriate type
             return data.data as HabiticaTask[];
         });
     }

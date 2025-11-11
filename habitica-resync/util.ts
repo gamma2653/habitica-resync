@@ -1,5 +1,4 @@
 import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings as HabiticaTaskSettings } from './types';
-import { TaskTypes, ExcludedTaskTypes } from './types';
 // import { version as VERSION } from './manifest.json';
 
 /**
@@ -144,6 +143,10 @@ const priorityToEmoji = (priority: number): string => {
     return TASK_PRIORITIES[intPriority] || '';
 };
 
+export const newSubscriberEntry = () => ({
+    paneSync: new Set<(...args: any[]) => void>(),
+    noteSync: new Set<(...args: any[]) => void>()
+});
 
 export const emojiPartForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
     // First pick emoji based on task type

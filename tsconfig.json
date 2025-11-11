@@ -18,6 +18,7 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "**/*.ts"
-, "habitica-resync/react/mounting.tsx"  ]
+    "**/*.ts",
+    "**/*.tsx"
+  ],
 }
