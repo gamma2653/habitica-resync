@@ -81,20 +81,24 @@ export interface HabiticaTaskRequest {
 	dueDate?: Date;
 }
 
+// Event and Subscriber IDs
 export const HABITICA_API_EVENTS = ['todoUpdated', 'dailyUpdated', 'habitUpdated', 'taskUpdated'] as const;
-export type HabiticaApiEvent = typeof HABITICA_API_EVENTS[number];
 export const SUBSCRIBER_IDs = ['paneSync', 'noteSync'] as const;
+
+export type HabiticaApiEvent = typeof HABITICA_API_EVENTS[number];
 export type SubscriberID = typeof SUBSCRIBER_IDs[number];
 
-
+// Habitica API Interface
 export interface HabiticaAPI {
 	retrieveTasks(ctx?: HabiticaTaskRequest): Promise<HabiticaTask[]>;
 	retrieveAllTasks(): Promise<HabiticaTaskMap>;
 	// createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null>;
-	subscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void;  // e.g., 'todoUpdated', 'dailyUpdated', etc.
-	unsubscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void;
+	subscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;  // e.g., 'todoUpdated', 'dailyUpdated', etc.
+	unsubscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;
+	emit(event: HabiticaApiEvent, tasks: HabiticaTask[]): void;
 }
 
-export interface ContextView {
-	new (leaf: any, ctx: any): ContextView;
-}
+
+// export interface ContextView {
+// 	new (leaf: any, ctx: any): ContextView;
+// }

@@ -1,5 +1,5 @@
-import type { HabiticaAPI, HabiticaResponse, HabiticaTask, HabiticaTaskRequest, HabiticaTaskMap, HabiticaApiEvent, SubscriberID } from './types';
-import { organizeHabiticaTasksByType, log, newSubscriberEntry } from './util';
+import * as types from './types';
+import * as util from './util';
 import type HabiticaResyncPlugin from '../main';
 
 const HABITICA_SIDE_PLUGIN_ID = 'habitica-x-obsidian-task-integration';
@@ -9,15 +9,15 @@ const DEVELOPER_USER_ID = 'a8e40d27-c872-493f-acf2-9fe75c56ac0c'  // Itssa me, G
 /**
  * Interfaces with the Habitica API while respecting rate limits.
  */
-export class HabiticaClient implements HabiticaAPI {
+export class HabiticaClient implements types.HabiticaAPI {
     plugin: HabiticaResyncPlugin | null = null;
     remainingRequests: number = 30;
     nextResetTime: Date | null = null;
-    eventListeners: Record<HabiticaApiEvent, Record<SubscriberID, Set<(...args: any[]) => void>>> = {
-        todoUpdated: newSubscriberEntry(),
-        dailyUpdated: newSubscriberEntry(),
-        habitUpdated: newSubscriberEntry(),
-        taskUpdated: newSubscriberEntry()
+    eventListeners: Record<types.HabiticaApiEvent, Record<types.SubscriberID, Set<(tasks: types.HabiticaTask[]) => void>>> = {
+        todoUpdated: util.newSubscriberEntry(),
+        dailyUpdated: util.newSubscriberEntry(),
+        habitUpdated: util.newSubscriberEntry(),
+        taskUpdated: util.newSubscriberEntry()
     };
     constructor(plugin: HabiticaResyncPlugin) {
         // Initialize with settings
@@ -38,13 +38,9 @@ export class HabiticaClient implements HabiticaAPI {
      * @param subscriber_id The subscriber ID to use.
      * @param listener The listener function to call when the event is triggered.
      */
-    subscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void {
+    subscribe(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, listener: (tasks: types.HabiticaTask[]) => void): void {
         // Subscribe to Habitica API events
-        if (event in this.eventListeners) {
-            this.eventListeners[event as HabiticaApiEvent][subscriber_id].add(listener);
-        } else {
-            throw new Error(`Unsupported event type: ${event}`);
-        }
+        this.eventListeners[event][subscriber_id].add(listener);
     }
 
     /**
@@ -53,14 +49,30 @@ export class HabiticaClient implements HabiticaAPI {
      * @param subscriber_id The subscriber ID to use.
      * @param listener The listener function to remove.
      */
-    unsubscribe(event: string, subscriber_id: SubscriberID, listener: (...args: any[]) => void): void {
+    unsubscribe(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, listener: (tasks: types.HabiticaTask[]) => void): void {
         // Unsubscribe from Habitica API events
-        if (event in this.eventListeners) {
-            this.eventListeners[event as HabiticaApiEvent][subscriber_id].delete(listener);
-        } else {
-            throw new Error(`Unsupported event type: ${event}`);
+        this.eventListeners[event][subscriber_id].delete(listener);
+    }
+
+    emit(event: types.HabiticaApiEvent, tasks: types.HabiticaTask[]): void {
+        // Emit Habitica API events
+        for (const subscriber_id of types.SUBSCRIBER_IDs) {
+            for (const listener of this.eventListeners[event][subscriber_id]) {
+                listener(tasks);
+            }
         }
     }
+
+    _emitNonHomogeneous(tasks: types.HabiticaTask[]): void {
+        const updated_task_types = new Set(tasks.map(t => t.type));
+        for (const updated_type of updated_task_types) {
+            const potentialEvent = `${updated_type}Updated`;
+            if (potentialEvent in this.eventListeners) {
+                this.emit(potentialEvent as types.HabiticaApiEvent, tasks.filter(t => t.type === updated_type));
+            }
+        }
+    }
+
 
     /**
      * Perform the callback while unsubscribing from all events, then resubscribe.
@@ -70,8 +82,8 @@ export class HabiticaClient implements HabiticaAPI {
      * @param subscriber_id The subscriber ID to unsubscribe.
      * @param fn The function to execute while unsubscribed.
      */
-    async performWhileUnsubscribed(event: string, subscriber_id: SubscriberID, fn: () => Promise<void>): Promise<void> {
-        const listeners = this.eventListeners[event as HabiticaApiEvent][subscriber_id];
+    async performWhileUnsubscribed(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, fn: () => Promise<void>): Promise<void> {
+        const listeners = this.eventListeners[event][subscriber_id];
         for (const listener of listeners) {
             this.unsubscribe(event, subscriber_id, listener);
         }
@@ -115,24 +127,24 @@ export class HabiticaClient implements HabiticaAPI {
      * @returns A promise that resolves to the result of the function.
      * @throws An error if the function call fails.
      */
-    async callWhenRateLimitAllows(fn: () => Promise<Response>): Promise<HabiticaResponse> {
+    async callWhenRateLimitAllows(fn: () => Promise<Response>): Promise<types.HabiticaResponse> {
         // If we have remaining requests, call the function immediately
         if (this.remainingRequests > 0) {
-            log("callWhenRateLimitAllows: Remaining requests available, making request immediately.");
+            util.log("callWhenRateLimitAllows: Remaining requests available, making request immediately.");
             return fn().then(this._handleResponse.bind(this));
         }
         // If we don't have remaining requests, wait until the reset time and resolve then.
         if (this.nextResetTime && this.nextResetTime > new Date()) {
-            log(`callWhenRateLimitAllows: No remaining requests, waiting until reset time at ${this.nextResetTime.toISOString()} (${this.nextResetTime}).`);
+            util.log(`callWhenRateLimitAllows: No remaining requests, waiting until reset time at ${this.nextResetTime.toISOString()} (${this.nextResetTime}).`);
             const waitTime = this.nextResetTime.getTime() - new Date().getTime();
-            return new Promise<HabiticaResponse>((resolve) => {
+            return new Promise<types.HabiticaResponse>((resolve) => {
                 setTimeout(() => {
                     // Recursively call this function after waiting to ensure rate limit is respected
                     this.callWhenRateLimitAllows(fn).then(resolve);
                 }, waitTime + this.settings().rateLimitBuffer);
             });
         }
-        log("!!! callWhenRateLimitAllows: No reset time available, making request immediately.");
+       util.log("!!! callWhenRateLimitAllows: No reset time available, making request immediately.");
         // If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
         return fn().then(this._handleResponse.bind(this));
     }
@@ -143,17 +155,17 @@ export class HabiticaClient implements HabiticaAPI {
      * @returns A promise that resolves to the parsed HabiticaResponse.
      * @throws An error if the response is not ok or if the API indicates failure.
      */
-    async _handleResponse(response: Response): Promise<HabiticaResponse> {
+    async _handleResponse(response: Response): Promise<types.HabiticaResponse> {
         // Check response headers for rate limiting info
         this.remainingRequests = parseInt(response.headers.get('x-ratelimit-remaining') || this.remainingRequests?.toString() || '30');
         this.nextResetTime = new Date(response.headers.get('x-ratelimit-reset') || this.nextResetTime?.toISOString() || new Date().toISOString());
-        log(`Rate Limit - Remaining: ${this.remainingRequests}, Next Reset Time: ${this.nextResetTime}`);
+        util.log(`Rate Limit - Remaining: ${this.remainingRequests}, Next Reset Time: ${this.nextResetTime}`);
         // Check if response is ok & successful
         if (!response.ok) {
             throw new Error(`HTTP error (Is Habitica API down?); status: ${response.status}, statusText: ${response.statusText}`);
         }
         // Sneak peek at the response JSON
-        const data = await response.json() as HabiticaResponse;
+        const data = await response.json() as types.HabiticaResponse;
         if (!data.success) {
             throw new Error(`Habitica API error (Was there a Habitica API update?); response: ${JSON.stringify(data)}`);
         }
@@ -167,7 +179,7 @@ export class HabiticaClient implements HabiticaAPI {
      * @param ctx The context for retrieving tasks, including type and due date.
      * @returns A promise that resolves to an array of HabiticaTask objects.
      */
-    async retrieveTasks(ctx: HabiticaTaskRequest = {}): Promise<HabiticaTask[]> {
+    async retrieveTasks(ctx: types.HabiticaTaskRequest = {}): Promise<types.HabiticaTask[]> {
         // Fetch
         // Only include keys for non-null/defined parameters
         const queryParams: Record<string, string> = {
@@ -176,14 +188,16 @@ export class HabiticaClient implements HabiticaAPI {
         };
         const url = this.buildApiUrl('tasks/user', 3, queryParams);
         const headers = this._defaultJSONHeaders();
-        log(`Fetching tasks from Habitica: ${url}`);
+        util.log(`Fetching tasks from Habitica: ${url}`);
 
         // First retrieve data, then parse response
         return this.callWhenRateLimitAllows(() =>
             fetch(url, { method: 'GET', headers })
-        ).then((data: HabiticaResponse) => {
+        ).then((data: types.HabiticaResponse) => {
             // Presume failure is caught by _handleResponse; cast as appropriate type
-            return data.data as HabiticaTask[];
+            const tasks = data.data as types.HabiticaTask[];
+            this._emitNonHomogeneous(tasks);
+            return tasks;
         });
     }
 
@@ -191,10 +205,10 @@ export class HabiticaClient implements HabiticaAPI {
      * Utility method to retrieve all tasks organized by type.
      * @returns A promise that resolves to a map of tasks organized by type.
      */
-    async retrieveAllTasks(): Promise<HabiticaTaskMap> {
+    async retrieveAllTasks(): Promise<types.HabiticaTaskMap> {
         // Retrieve all tasks of all types
         const tasks = await this.retrieveTasks();
-        return organizeHabiticaTasksByType(tasks);
+        return util.organizeHabiticaTasksByType(tasks);
     }
 
     // async createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null> {

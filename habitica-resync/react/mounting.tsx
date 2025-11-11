@@ -3,7 +3,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import { HabiticaResyncApp } from './App';
 import { HabiticaResyncAppCtx } from './ctx';
-import { HabiticaClient } from 'habitica-resync/api';
+import type { HabiticaClient } from '../api';
 
 
 export class HabiticaResyncView extends ItemView {

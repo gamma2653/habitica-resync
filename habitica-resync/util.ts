@@ -81,7 +81,7 @@ export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTask
 }
 
 
-export const checklistPartForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string[] => {
+export const checklistLinesForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string[] => {
     // If checklist is invalid, return empty array
     if (!task.checklist || !Array.isArray(task.checklist) || task.checklist.length === 0) {
         return [];
@@ -160,6 +160,7 @@ export const emojiPartForTask = (task: HabiticaTask, settings: HabiticaTaskSetti
  * Generates the primary markdown line for a Habitica task.
  * This line includes the completion checkbox, an emoji representing the task type, and the task text.
  * @param task The Habitica task to convert to a markdown line.
+ * @param settings Settings for formatting the task line.
  * @returns The primary markdown line for the task.
  */
 export const primaryLineForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
@@ -172,8 +173,9 @@ export const primaryLineForTask = (task: HabiticaTask, settings: HabiticaTaskSet
 /**
  * Converts a Habitica task to a markdown note.
  * @param task The Habitica task to convert.
+ * @param settings Settings for formatting the task note.
  * @returns The markdown-formatted string for the task.
  */
 export const taskToNoteLines = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
-    return [primaryLineForTask(task, settings), ...checklistPartForTask(task, settings)].join('\n');
+    return [primaryLineForTask(task, settings), ...checklistLinesForTask(task, settings)].join('\n');
 }

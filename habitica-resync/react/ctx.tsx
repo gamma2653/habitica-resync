@@ -3,6 +3,8 @@ import { App } from 'obsidian';
 
 import { HabiticaClient } from '../api'
 
+export const SUBSCRIBER_ID = 'paneSync'
+
 type HabiticaResyncCtx = {
   app: App;
   habiticaClient: HabiticaClient;
