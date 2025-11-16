@@ -1,8 +1,41 @@
-/*
+/* Used by habitica-resync/react/ */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.habitica-resync-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
 
-If your plugin does not need CSS, delete this file.
+.habitica-resync-nav .navbar-links {
+    list-style: none;
+    display: flex;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+}
 
-*/
+.habitica-resync-nav .navbar-links li {
+    margin: 0;
+}
+
+.habitica-resync-nav .navbar-links li.active button {
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.habitica-resync-nav .navbar-links li button {
+    background: none;
+    border: none;
+    color: var(--text-normal);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.habitica-resync-nav .navbar-links li button:hover {
+    background-color: var(--background-modifier-hover);
+    border-radius: 4px;
+}
