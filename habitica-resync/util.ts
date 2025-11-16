@@ -80,6 +80,23 @@ export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTask
     return taskMap;
 }
 
+export const addTasksToMap = (taskMap: HabiticaTaskMap, tasksToAdd: HabiticaTask[]) => {
+    for (const task of tasksToAdd) {
+        if (task.type in taskMap) {
+            // Check for duplicates before adding
+            const existingTaskIndex = taskMap[task.type].findIndex(t => t.id === task.id);
+            if (existingTaskIndex === -1) {
+                taskMap[task.type].push(task);
+            } else {
+                // warn(`Duplicate task detected (ID: ${task.id}). Updating existing task.`);
+                // Update existing task
+                taskMap[task.type][existingTaskIndex] = task;
+            }
+        } else {
+            console.warn(`Unknown task type encountered: ${task.type}`);
+        }
+    }
+};
 
 export const checklistLinesForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string[] => {
     // If checklist is invalid, return empty array

@@ -13,6 +13,13 @@ export class HabiticaClient implements types.HabiticaAPI {
     plugin: HabiticaResyncPlugin | null = null;
     remainingRequests: number = 30;
     nextResetTime: Date | null = null;
+    allTasks: types.HabiticaTaskMap = {
+        habit: [],
+        daily: [],
+        todo: [],
+        reward: [],
+        completedTodo: []
+    };
     eventListeners = {
         todoUpdated: util.newSubscriberEntry(),
         dailyUpdated: util.newSubscriberEntry(),
@@ -40,6 +47,7 @@ export class HabiticaClient implements types.HabiticaAPI {
      */
     subscribe(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, listener: (tasks: types.HabiticaTask[]) => void): void {
         // Subscribe to Habitica API events
+        util.log(`Subscribing to event: ${event}, subscriber_id: ${subscriber_id}`);
         this.eventListeners[event][subscriber_id].add(listener);
     }
 
@@ -112,8 +120,9 @@ export class HabiticaClient implements types.HabiticaAPI {
      * @returns The constructed API URL.
      */
     buildApiUrl(endpoint: string, version: number = 3, queryParams: Record<string, string> = {}): string {
-        const queryString = new URLSearchParams(queryParams).toString();
-        return `${HABITICA_API_URL}/v${version}/${endpoint}?${queryString}`;
+        const url = new URL(`${HABITICA_API_URL}/v${version}/${endpoint}`);
+        url.search = new URLSearchParams(queryParams).toString();
+        return url.toString();
     }
 
     _defaultHeaders() {
@@ -207,6 +216,7 @@ export class HabiticaClient implements types.HabiticaAPI {
         ).then((data: types.HabiticaResponse) => {
             // Presume failure is caught by _handleResponse; cast as appropriate type
             const tasks = data.data as types.HabiticaTask[];
+            util.addTasksToMap(this.allTasks, tasks);
             this._emitNonHomogeneous(tasks);
             return tasks;
         });
@@ -220,6 +230,10 @@ export class HabiticaClient implements types.HabiticaAPI {
         // Retrieve all tasks of all types
         const tasks = await this.retrieveTasks();
         return util.organizeHabiticaTasksByType(tasks);
+    }
+
+    retrieveTasksNoSync() {
+
     }
 
     // async createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null> {

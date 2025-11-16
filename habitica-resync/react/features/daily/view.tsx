@@ -1,13 +1,17 @@
 import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../../ctx";
 import { useEffect, useState } from "react";
 import { HabiticaTask } from "habitica-resync/types";
+import { ViewProps } from "../nav";
 
 export const EVENT_ID = 'dailyUpdated';
 
-export const DailyView = () => {
+export const DailyView = ({active}: ViewProps) => {
+    if (!active) {
+        return null;
+    }
     const { app, habiticaClient } = useHabiticaResyncApp();
     const { vault } = app;
-    const [tasks, setTasks] = useState<HabiticaTask[]>([]);
+    const [tasks, setTasks] = useState<HabiticaTask[]>(habiticaClient.allTasks.daily);
     
     useEffect(() => {
         habiticaClient.subscribe(EVENT_ID, SUBSCRIBER_ID, (dailys) => {

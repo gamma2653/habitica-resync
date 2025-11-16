@@ -68,7 +68,8 @@ export default class HabiticaResyncPlugin extends Plugin {
 		const ribbonIconEl = this.addRibbonIcon('swords', PLUGIN_NAME, async (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice(`${PLUGIN_NAME} icon clicked. Retrieving tasks...`);
-			await this.retrieveHabiticaNotes();
+			await this.client.retrieveAllTasks();
+			// await this.retrieveHabiticaNotes();
 			if (this.settings.enablePane) {
 				await this.showPane();
 			}
@@ -92,24 +93,33 @@ export default class HabiticaResyncPlugin extends Plugin {
 		} as T;
 	}
 
-	async retrieveHabiticaNotes() {
+	// async handleNotesUpdate(habiticaTasks: types.HabiticaTaskMap) {
+	async handleHomogeneousUpdate(type_: string, habiticaTasks: types.HabiticaTask[]) {
 		const folderPath = this.getOrCreateHabiticaFolder();
-		// Create files
-		const habiticaTasks = await this.client.performWhileAllUnsubscribed('noteSync', this.client.retrieveAllTasks());
-		for (const [type_, tasks] of Object.entries(habiticaTasks)) {
-			// Skip ignored types
-			if (tasks.length === 0 || types.EXCLUDED_TASK_TYPES.has(type_ as types.TaskType)) {  // Surprised TypeScript allows this cast
-				continue;
+		if (habiticaTasks.length === 0) {
+			return;
+		}
+		if (this.settings.enableNotes) {
+			for (const task of habiticaTasks) {
+				if (type_ !== task.type) {
+					util.warn(`Received tasks for type ${task.type} in handler for type ${type_}, skipping.`);
+					continue;
+				}
+				// Skip ignored types
+				if (types.EXCLUDED_TASK_TYPES.has(type_ as types.TaskType)) {  // Surprised TypeScript allows this cast
+					continue;
+				}
 			}
-			const fileName = `${type_}.md`;
-			const filePath = `${folderPath}/${fileName}`;
+			const filePath = `${folderPath}/${type_}.md`;
 			const file = this.app.vault.getFileByPath(filePath);
+			util.log(`Updating Habitica notes for type ${type_} at path ${filePath}`);
+			util.log(`File exists: ${file}`);
 			if (!file) {
 				// Create new file
-				await this.app.vault.create(filePath, tasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
+				await this.app.vault.create(filePath, habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
 			} else {
 				// Overwrite existing file
-				await this.app.vault.process(file, _ => tasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
+				await this.app.vault.process(file, _ => habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
 			}
 		}
 	}
@@ -233,10 +243,26 @@ export default class HabiticaResyncPlugin extends Plugin {
 		this.addViews();
 		this.detectTasksPlugin();
 		this.client = new habiticaAPI.HabiticaClient(this);
+		// Retrieve tasks, the event will trigger view updates where applicable
+		this.initSubscriptions();
+		this.app.workspace.onLayoutReady(async () => {
+			await this.client.retrieveAllTasks();
+		});
 	}
 
 	onunload() {
 
+	}
+
+	initSubscriptions() {
+		if (this.settings.enableNotes) {
+			for (const type_ of types.TASK_TYPES) {
+				if (types.EXCLUDED_TASK_TYPES.has(type_)) {
+					continue;
+				}
+				this.client.subscribe(`${type_}Updated` as types.HabiticaApiEvent, 'noteSync', this.runOrNotify(this.handleHomogeneousUpdate.bind(this, type_)));
+			}
+		}
 	}
 
 	determineFunctionality() {
