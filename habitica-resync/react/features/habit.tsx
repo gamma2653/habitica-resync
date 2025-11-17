@@ -1,7 +1,7 @@
-import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../../ctx";
+import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../ctx";
 import { useEffect, useState } from "react";
 import { HabiticaTask } from "habitica-resync/types";
-import { ViewProps } from "../nav";
+import { ViewProps } from "./nav";
 
 export const EVENT_ID = 'habitUpdated';
 
@@ -14,9 +14,10 @@ export const HabitView = ({active}: ViewProps) => {
     const [tasks, setTasks] = useState<HabiticaTask[]>(habiticaClient.allTasks.habit);
     
     useEffect(() => {
-        habiticaClient.subscribe(EVENT_ID, SUBSCRIBER_ID, (habits) => {
-            setTasks(habits);
-        });
+        habiticaClient.subscribe(EVENT_ID, SUBSCRIBER_ID, setTasks);
+        return () => {
+            habiticaClient.unsubscribe(EVENT_ID, SUBSCRIBER_ID, setTasks);
+        }
     }, []);
 
     return (

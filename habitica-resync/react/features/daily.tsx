@@ -1,31 +1,28 @@
-import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../../ctx";
+import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../ctx";
 import { useEffect, useState } from "react";
 import { HabiticaTask } from "habitica-resync/types";
-import { ViewProps } from "../nav";
+import { ViewProps } from "./nav";
 
-export const EVENT_ID = 'todoUpdated';
+export const EVENT_ID = 'dailyUpdated';
 
-export const TodoView = ({active}: ViewProps) => {
+export const DailyView = ({active}: ViewProps) => {
     if (!active) {
         return null;
     }
     const { app, habiticaClient } = useHabiticaResyncApp();
     const { vault } = app;
-    const [tasks, setTasks] = useState<HabiticaTask[]>(habiticaClient.allTasks.todo);
+    const [tasks, setTasks] = useState<HabiticaTask[]>(habiticaClient.allTasks.daily);
     
     useEffect(() => {
-        const listener = (todo: HabiticaTask[]) => {
-            setTasks(todo);
-        };
-        habiticaClient.subscribe(EVENT_ID, SUBSCRIBER_ID, listener);
+        habiticaClient.subscribe(EVENT_ID, SUBSCRIBER_ID, setTasks);
         return () => {
-            habiticaClient.unsubscribe(EVENT_ID, SUBSCRIBER_ID, listener);
+            habiticaClient.unsubscribe(EVENT_ID, SUBSCRIBER_ID, setTasks);
         }
-    }, []);  // Because I'm cool like that
+    }, []);  // empty dependency for only subscribing once
 
     return (
         <div>
-            <h2>Todo View</h2>
+            <h2>Dailys View</h2>
             <ul>
                 {tasks.map(task => (
                     <li key={task.id}><span style={{
