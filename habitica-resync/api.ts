@@ -166,7 +166,8 @@ export class HabiticaClient implements types.HabiticaAPI {
             });
         }
         util.log("!!! callWhenRateLimitAllows: No reset time available, making request immediately.");
-        // If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
+        // If we don't have a reset time, just call the function
+        // (shouldn't happen, except maybe on first call or when messing w/ sys time, resolves instantly)
         return awaitable().then(this._handleResponse.bind(this));
     }
 
@@ -183,7 +184,7 @@ export class HabiticaClient implements types.HabiticaAPI {
         util.log(`Rate Limit - Remaining: ${this.remainingRequests}, Next Reset Time: ${this.nextResetTime}`);
         // Check if response is ok & successful
         if (!response.ok) {
-            throw new Error(`HTTP error (Is Habitica API down?); status: ${response.status}, statusText: ${response.statusText}`);
+            throw new Error(`HTTP error (${response.status}); status (${response.statusText})`);
         }
         // Sneak peek at the response JSON
         const data = await response.json() as types.HabiticaResponse;
@@ -197,6 +198,7 @@ export class HabiticaClient implements types.HabiticaAPI {
      * Retrieves tasks from Habitica API based on the provided context.
      * If no context is provided, retrieves all tasks.
      * If the request fails, notifies the user and returns an empty array.
+     * NOTE: This method emits events for retrieved tasks.
      * @param ctx The context for retrieving tasks, including type and due date.
      * @returns A promise that resolves to an array of HabiticaTask objects.
      */
@@ -228,13 +230,25 @@ export class HabiticaClient implements types.HabiticaAPI {
      * Utility method to retrieve all tasks organized by type.
      * @returns A promise that resolves to a map of tasks organized by type.
      */
-    async retrieveAllTasks(): Promise<types.HabiticaTaskMap> {
+    async retrieveTaskMap(): Promise<types.HabiticaTaskMap> {
         // Retrieve all tasks of all types
-        const tasks = await this.retrieveTasks();
-        return util.organizeHabiticaTasksByType(tasks);
+        return util.organizeHabiticaTasksByType(await this.retrieveTasks());
     }
 
-    async updateTask(task_data: types.PartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
+    async retrieveTask(taskId: string): Promise<types.HabiticaTask | null> {
+        // Retrieve a specific task by ID
+        const url = this.buildApiUrl(`tasks/${taskId}`, 3);
+        const headers = this._defaultJSONHeaders();
+        util.log(`Retrieving specific task from Habitica: ${url}`);
+        return this.callWhenRateLimitAllows(
+            () => fetch(url, { method: 'GET', headers })
+        ).then((data: types.HabiticaResponse) => {
+            // Presume failure is caught by _handleResponse
+            return data.data as types.HabiticaTask;
+        });
+    }
+
+    async updateTask(task_data: types.RecursePartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
     	// Update a task in Habitica
     	const url = this.buildApiUrl(`tasks/${task_data.id}`, 3);
     	const headers = this._defaultJSONHeaders();
@@ -247,24 +261,51 @@ export class HabiticaClient implements types.HabiticaAPI {
     	});
     }
 
-    // async createTask(task: RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {
-    // 	// Create a new task in Habitica
-    // 	const url = this.buildApiUrl('tasks/user', 3);
-    // 	const headers = this._defaultJSONHeaders();
-    // 	util.log(`Creating task in Habitica: ${url}`);
+    async createTask(task: RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {
+    	// Create a new task in Habitica
+    	const url = this.buildApiUrl('tasks/user', 3);
+    	const headers = this._defaultJSONHeaders();
+    	util.log(`Creating task in Habitica: ${url}`);
 
-    // 	return this.callWhenRateLimitAllows(
-    //         fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
-    // 	).then((data: types.HabiticaResponse) => {
-    // 		// Presume failure is caught by _handleResponse
-    // 		return data.data as types.HabiticaTask;
-    // 	});
-    // }
+    	const new_task = await this.callWhenRateLimitAllows(
+            () => fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
+    	).then((data: types.HabiticaResponse) => {
+    		// Presume failure is caught by _handleResponse
+    		return data.data as types.HabiticaTask;
+    	});
+        // Create checklist items if present
+        if (task.checklist && Array.isArray(task.checklist) && task.checklist.length > 0) {
+            for (const checklistItem of task.checklist) {
+                const checklistUrl = this.buildApiUrl(`tasks/${new_task.id}/checklist`, 3);
+                await this.callWhenRateLimitAllows(
+                    () => fetch(checklistUrl, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(checklistItem)
+                    })
+                );
+            }
+        }
 
-    // async syncTasksToHabitica(tasks: RecursivePartial<types.HabiticaTask>[]): Promise<void> {
-    //     // Sync multiple tasks to Habitica
-    //     for (const task of tasks) {
-    //         await this.createTask(task);
-    //     }
-    // }
+        return new_task;
+    }
+
+    async updateOrCreateTask(task: types.RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {
+        // Check if task with same ID exists
+        const existingTask = task.id ? await this.retrieveTask(task.id) : null;
+        if (existingTask) {
+            // Update existing task w/ merged data
+            return this.updateTask({ ...existingTask, ...task });
+        } else {
+            // Create new task
+            return this.createTask(task);
+        }
+    }
+
+    async syncTasksToHabitica(tasks: RecursivePartial<types.HabiticaTask>[]): Promise<void> {
+        // Sync multiple tasks to Habitica
+        for (const task of tasks) {
+            await this.updateOrCreateTask(task);
+        }
+    }
 }

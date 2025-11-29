@@ -6,10 +6,6 @@ import * as types from './habitica-resync/types';
 import * as mounting from './habitica-resync/react/mounting';
 import * as habiticaAPI from './habitica-resync/api';
 import * as util from './habitica-resync/util';
-// import { ExcludedTaskTypes, TaskTypes } from './habitica-resync/types';
-// import { HabiticaClient } from './habitica-resync/api';
-// import { taskToNoteLines, log, warn } from './habitica-resync/util';
-// import { VIEW_ID_TO_TYPE } from 'habitica-resync/mounting';
 
 
 const DEFAULT_SETTINGS: types.HabiticaTasksSettings = {
@@ -68,7 +64,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 		const ribbonIconEl = this.addRibbonIcon('swords', PLUGIN_NAME, async (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice(`${PLUGIN_NAME} icon clicked. Retrieving tasks...`);
-			await this.client.retrieveAllTasks();
+			await this.client.retrieveTaskMap();
 			// await this.retrieveHabiticaNotes();
 			if (this.settings.enablePane) {
 				await this.showPane();
@@ -246,7 +242,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 		// Retrieve tasks, the event will trigger view updates where applicable
 		this.initSubscriptions();
 		this.app.workspace.onLayoutReady(async () => {
-			await this.client.retrieveAllTasks();
+			await this.client.retrieveTaskMap();
 		});
 	}
 

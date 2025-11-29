@@ -70,7 +70,7 @@ export type HabiticaTask = {
 export type RecursivePartial<T> = {
     [K in keyof T]?: T[K] extends Array<infer R> ? Array<RecursivePartial<R>> : RecursivePartial<T[K]>
 };
-export type PartialExcept<T, K extends keyof T> = RecursivePartial<T> & Pick<T, K>;
+export type RecursePartialExcept<T, K extends keyof T> = RecursivePartial<T> & Pick<T, K>;
 
 export const TASK_TYPES = ['habit', 'daily', 'todo', 'reward', 'completedTodo'] as const;
 // export type TaskType = typeof TaskTypes[keyof typeof TaskTypes];
@@ -100,8 +100,12 @@ export type SubscriberID = typeof SUBSCRIBER_IDs[number];
 // Habitica API Interface
 export interface HabiticaAPI {
 	retrieveTasks(ctx?: HabiticaTaskRequest): Promise<HabiticaTask[]>;
-	retrieveAllTasks(): Promise<HabiticaTaskMap>;
-	// createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null>;
+	retrieveTaskMap(): Promise<HabiticaTaskMap>;
+	retrieveTask(taskId: string): Promise<HabiticaTask | null>;
+	createTask(task: RecursivePartial<HabiticaTask>): Promise<HabiticaTask | null>;
+	updateTask(task_data: RecursePartialExcept<HabiticaTask, 'id'>): Promise<HabiticaTask | null>;
+	updateOrCreateTask(task: RecursivePartial<HabiticaTask>): Promise<HabiticaTask | null>;
+	syncTasksToHabitica(tasks: RecursivePartial<HabiticaTask>[]): Promise<void>;
 	subscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;  // e.g., 'todoUpdated', 'dailyUpdated', etc.
 	unsubscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;
 	emit(event: HabiticaApiEvent, tasks: HabiticaTask[]): void;
