@@ -1,4 +1,4 @@
-import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings as HabiticaTaskSettings } from './types';
+import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings, RecursivePartial, TaskType } from './types';
 // import { version as VERSION } from './manifest.json';
 
 /**
@@ -98,7 +98,7 @@ export const addTasksToMap = (taskMap: HabiticaTaskMap, tasksToAdd: HabiticaTask
     }
 };
 
-export const checklistLinesForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string[] => {
+export const checklistLinesForTask = (task: HabiticaTask, settings: HabiticaTasksSettings): string[] => {
     // If checklist is invalid, return empty array
     if (!task.checklist || !Array.isArray(task.checklist) || task.checklist.length === 0) {
         return [];
@@ -165,7 +165,7 @@ export const newSubscriberEntry = () => ({
     noteSync: new Set<(...args: any[]) => void>()
 });
 
-export const emojiPartForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
+export const emojiPartForTask = (task: HabiticaTask, settings: HabiticaTasksSettings): string => {
     // First pick emoji based on task type
     const duePart = taskDueDate(task);
     const priorityPart = priorityToEmoji(task.priority);
@@ -180,7 +180,7 @@ export const emojiPartForTask = (task: HabiticaTask, settings: HabiticaTaskSetti
  * @param settings Settings for formatting the task line.
  * @returns The primary markdown line for the task.
  */
-export const primaryLineForTask = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
+export const primaryLineForTask = (task: HabiticaTask, settings: HabiticaTasksSettings): string => {
     const completed = task.completed ? '- [x]' : '- [ ]';
     const emojiPart = emojiPartForTask(task, settings);
     const tagPart = settings.globalTaskTag ? `${settings.globalTaskTag}` : '';
@@ -193,6 +193,52 @@ export const primaryLineForTask = (task: HabiticaTask, settings: HabiticaTaskSet
  * @param settings Settings for formatting the task note.
  * @returns The markdown-formatted string for the task.
  */
-export const taskToNoteLines = (task: HabiticaTask, settings: HabiticaTaskSettings): string => {
+export const taskToNoteLines = (task: HabiticaTask, settings: HabiticaTasksSettings): string => {
     return [primaryLineForTask(task, settings), ...checklistLinesForTask(task, settings)].join('\n');
+}
+
+
+export const parseContentToTasks = (content: string, task_type: TaskType): RecursivePartial<HabiticaTask>[] => {
+    const lines = content.split('\n');
+    const tasks: RecursivePartial<HabiticaTask>[] = [];
+    let currentTask: RecursivePartial<HabiticaTask> | null = null;
+    // Iterate lines, keeping track of current task and its checklist items
+    for (const line of lines) {
+        const taskMatch = line.match(/^- \[( |x)\] (.*)$/);
+        if (taskMatch) {
+            // Save previous task if exists
+            if (currentTask) {
+                tasks.push(currentTask);
+            }
+            // Start new task
+            const completed = taskMatch[1] === 'x';
+            const text = taskMatch[2].trim();
+            currentTask = {
+                // id: '',  // TODO: ID will need to be set later
+                type: task_type,  // Default type, may need to be adjusted
+                text: text,
+                completed: completed,
+            };
+        } else {
+            const checklistMatch = line.match(/^\s*- \[( |x)\] (.*)$/);
+            if (checklistMatch && currentTask) {
+                // Add checklist item to current task
+                const completed = checklistMatch[1] === 'x';
+                const text = checklistMatch[2].trim();
+                if (!currentTask.checklist) {
+                    currentTask.checklist = [];
+                }
+                currentTask.checklist.push({
+                    text: text,
+                    completed: completed,
+                    // id: ''  // TODO: ID will need to be set later
+                });
+            }
+        }
+    }
+    // Push the last task if exists
+    if (currentTask) {
+        tasks.push(currentTask);
+    }
+    return tasks;
 }

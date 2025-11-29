@@ -1,6 +1,7 @@
 import * as types from './types';
 import * as util from './util';
 import type HabiticaResyncPlugin from '../main';
+import { RecursivePartial } from './types';
 
 const HABITICA_SIDE_PLUGIN_ID = 'habitica-x-obsidian-task-integration';
 const HABITICA_API_URL = 'https://habitica.com/api';
@@ -140,18 +141,18 @@ export class HabiticaClient implements types.HabiticaAPI {
     }
 
     /**
-     * Calls the provided function when the rate limit allows it.
+     * Awaits the promise when the rate limit allows it.
      * If there are remaining requests, it calls the function immediately.
      * If there are no remaining requests, it waits until the next reset time plus a buffer before calling the function.
      * @param awaitable The function to call when the rate limit allows it. This function should return a promise that resolves to a Response.
      * @returns A promise that resolves to the result of the function.
      * @throws An error if the function call fails.
      */
-    async callWhenRateLimitAllows(awaitable: Promise<Response>): Promise<types.HabiticaResponse> {
+    async callWhenRateLimitAllows(awaitable: () => Promise<Response>): Promise<types.HabiticaResponse> {
         // If we have remaining requests, call the function immediately
         if (this.remainingRequests > 0) {
             util.log("callWhenRateLimitAllows: Remaining requests available, making request immediately.");
-            return awaitable.then(this._handleResponse.bind(this));
+            return awaitable().then(this._handleResponse.bind(this));
         }
         // If we don't have remaining requests, wait until the reset time and resolve then.
         if (this.nextResetTime && this.nextResetTime > new Date()) {
@@ -166,7 +167,7 @@ export class HabiticaClient implements types.HabiticaAPI {
         }
         util.log("!!! callWhenRateLimitAllows: No reset time available, making request immediately.");
         // If we don't have a reset time, just call the function (shouldn't happen, except maybe on first call)
-        return awaitable.then(this._handleResponse.bind(this));
+        return awaitable().then(this._handleResponse.bind(this));
     }
 
     /**
@@ -212,9 +213,10 @@ export class HabiticaClient implements types.HabiticaAPI {
 
         // First retrieve data, then parse response
         return this.callWhenRateLimitAllows(
-            fetch(url, { method: 'GET', headers })
+            () => fetch(url, { method: 'GET', headers })
         ).then((data: types.HabiticaResponse) => {
             // Presume failure is caught by _handleResponse; cast as appropriate type
+            // TODO: Add zod validation here
             const tasks = data.data as types.HabiticaTask[];
             util.addTasksToMap(this.allTasks, tasks);
             this._emitNonHomogeneous(tasks);
@@ -232,21 +234,37 @@ export class HabiticaClient implements types.HabiticaAPI {
         return util.organizeHabiticaTasksByType(tasks);
     }
 
-    retrieveTasksNoSync() {
-
+    async updateTask(task_data: types.PartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
+    	// Update a task in Habitica
+    	const url = this.buildApiUrl(`tasks/${task_data.id}`, 3);
+    	const headers = this._defaultJSONHeaders();
+    	util.log(`Updating task in Habitica: ${url}`);
+        return this.callWhenRateLimitAllows(
+            () => fetch(url, { method: 'PUT', headers, body: JSON.stringify(task_data) })
+    	).then((data: types.HabiticaResponse) => {
+            // TODO: Parse using zod
+    		return data.data as types.HabiticaTask;
+    	});
     }
 
-    // async createTask(task: Partial<HabiticaTask>): Promise<HabiticaTask | null> {
+    // async createTask(task: RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {
     // 	// Create a new task in Habitica
     // 	const url = this.buildApiUrl('tasks/user', 3);
     // 	const headers = this._defaultJSONHeaders();
-    // 	log(`Creating task in Habitica: ${url}`);
+    // 	util.log(`Creating task in Habitica: ${url}`);
 
-    // 	return this.callWhenRateLimitAllows(() =>
-    // 		fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
-    // 	).then((data: HabiticaResponse) => {
+    // 	return this.callWhenRateLimitAllows(
+    //         fetch(url, { method: 'POST', headers, body: JSON.stringify(task) })
+    // 	).then((data: types.HabiticaResponse) => {
     // 		// Presume failure is caught by _handleResponse
-    // 		return data.data as HabiticaTask;
+    // 		return data.data as types.HabiticaTask;
     // 	});
+    // }
+
+    // async syncTasksToHabitica(tasks: RecursivePartial<types.HabiticaTask>[]): Promise<void> {
+    //     // Sync multiple tasks to Habitica
+    //     for (const task of tasks) {
+    //         await this.createTask(task);
+    //     }
     // }
 }

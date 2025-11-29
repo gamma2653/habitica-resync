@@ -15,7 +15,7 @@ export interface HabiticaTasksSettings {
 export type HabiticaTask = {
 	attribute: string
 	byHabitica: boolean
-	challenge: {
+	challenge:{ 
 		id?: string
 		shortName?: string
 		taskId?: string
@@ -24,7 +24,7 @@ export type HabiticaTask = {
 		completed: boolean
 		id: string
 		text: string
-	}
+	}[]
 	collapseChecklist?: boolean
 	completed?: boolean
 	counterDown?: number
@@ -62,6 +62,15 @@ export type HabiticaTask = {
 	yesterDaily?: boolean
 	_id: string
 }
+// Truly, beautiful typescript magic (via type recursion)
+// the lil question mark that can!
+// Source - https://stackoverflow.com/a/49935138
+// Posted by user94893, modified by community. See post 'Timeline' for change history
+// Retrieved 2025-11-29, License - CC BY-SA 4.0
+export type RecursivePartial<T> = {
+    [K in keyof T]?: T[K] extends Array<infer R> ? Array<RecursivePartial<R>> : RecursivePartial<T[K]>
+};
+export type PartialExcept<T, K extends keyof T> = RecursivePartial<T> & Pick<T, K>;
 
 export const TASK_TYPES = ['habit', 'daily', 'todo', 'reward', 'completedTodo'] as const;
 // export type TaskType = typeof TaskTypes[keyof typeof TaskTypes];

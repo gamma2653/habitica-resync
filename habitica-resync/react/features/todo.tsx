@@ -20,14 +20,26 @@ export const TodoView = ({active}: ViewProps) => {
         }
     }, []);  // Because I'm cool like that
 
+    const onChange = (taskId: string, completed: boolean) => {
+        // habiticaClient.updateTask(taskId, { completed: completed });
+        tasks.forEach(task => {
+            if (task.id === taskId) {
+                task.completed = completed;
+            }
+        });
+        setTasks([...tasks]);
+        console.log(`Task ${taskId} set to completed: ${completed}`);
+    }
+
     return (
         <div>
             <h2>Todo View</h2>
             <ul>
                 {tasks.map(task => (
                     <li key={task.id}><span style={{
-                        display: 'inline'
-                    }}><input type="checkbox" checked={task.completed} id={task.id} /> <label htmlFor={task.id}>{task.text}</label></span></li>
+                        display: 'inline',
+                        textDecoration: task.completed ? 'line-through' : 'none',
+                    }}><input type="checkbox" checked={task.completed} id={task.id} onChange={() => onChange(task.id, !task.completed)} /> <label htmlFor={task.id}>{task.text}</label></span></li>
                 ))}
             </ul>
         </div>
