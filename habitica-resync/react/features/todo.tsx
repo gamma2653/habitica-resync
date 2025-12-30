@@ -1,7 +1,9 @@
 import { useHabiticaResyncApp, SUBSCRIBER_ID } from "../ctx";
 import { useEffect, useState } from "react";
-import { HabiticaTask } from "habitica-resync/types";
+import { HabiticaTask } from "../../types";
+import * as util from "../../util";
 import { ViewProps } from "./nav";
+import { TaskDisplay } from "./taskDisplay";
 
 export const EVENT_ID = 'todoUpdated';
 
@@ -27,21 +29,19 @@ export const TodoView = ({active}: ViewProps) => {
                 task.completed = completed;
             }
         });
+        habiticaClient.updateTask({ id: taskId, completed: completed }).then(() => {
+            util.log(`Updated task ${taskId} in Habitica`);
+        }).catch(err => {
+            util.error(`Failed to update task ${taskId} in Habitica:`, err);
+        });
         setTasks([...tasks]);
-        console.log(`Task ${taskId} set to completed: ${completed}`);
+        util.log(`Task ${taskId} set to completed: ${completed}`);
     }
 
     return (
         <div>
             <h2>Todo View</h2>
-            <ul>
-                {tasks.map(task => (
-                    <li key={task.id}><span style={{
-                        display: 'inline',
-                        textDecoration: task.completed ? 'line-through' : 'none',
-                    }}><input type="checkbox" checked={task.completed} id={task.id} onChange={() => onChange(task.id, !task.completed)} /> <label htmlFor={task.id}>{task.text}</label></span></li>
-                ))}
-            </ul>
+            <TaskDisplay tasks={tasks} onChange={onChange} onChecklistChange={() => {}} />
         </div>
     );
 }

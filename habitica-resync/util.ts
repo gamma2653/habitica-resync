@@ -74,7 +74,7 @@ export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTask
         if (task.type in taskMap) {
             taskMap[task.type].push(task);
         } else {
-            console.warn(`Unknown task type encountered: ${task.type}`);
+            warn(`Unknown task type encountered: ${task.type}`);
         }
     }
     return taskMap;
@@ -93,7 +93,7 @@ export const addTasksToMap = (taskMap: HabiticaTaskMap, tasksToAdd: HabiticaTask
                 taskMap[task.type][existingTaskIndex] = task;
             }
         } else {
-            console.warn(`Unknown task type encountered: ${task.type}`);
+            warn(`Unknown task type encountered: ${task.type}`);
         }
     }
 };

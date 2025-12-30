@@ -78,7 +78,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 		const plugin = this;
 		return function(this: any, ...args: Parameters<T>): ReturnType<T> | void {
 			if (!plugin.functioning) {
-				console.warn(`Plugin is not functioning: ${plugin.nonFunctionalReason}`);
+				util.warn(`Plugin is not functioning: ${plugin.nonFunctionalReason}`);
 				if (!plugin.lastFunctionalNotice || (new Date().getTime() - plugin.lastFunctionalNotice.getTime()) > 60000) {
 					new Notice(`${PLUGIN_NAME} is not functioning: ${plugin.nonFunctionalReason}\nCheck the console for more details.`);
 					plugin.lastFunctionalNotice = new Date();
@@ -108,8 +108,8 @@ export default class HabiticaResyncPlugin extends Plugin {
 			}
 			const filePath = `${folderPath}/${type_}.md`;
 			const file = this.app.vault.getFileByPath(filePath);
-			util.log(`Updating Habitica notes for type ${type_} at path ${filePath}`);
-			util.log(`File exists: ${file}`);
+			// util.log(`Updating Habitica notes for type ${type_} at path ${filePath}`);
+			// util.log(`File exists: ${file}`);
 			if (!file) {
 				// Create new file
 				await this.app.vault.create(filePath, habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
@@ -216,7 +216,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 			try {
 				this.tasksPlugin = (this.app as any).plugins.getPlugin('obsidian-tasks-plugin');
 			} catch (error) {
-				console.error('Error accessing plugins manager to detect Tasks plugin:', error);
+				util.error('Error accessing plugins manager to detect Tasks plugin:', error);
 				this.tasksPlugin = null;
 			}
 		});

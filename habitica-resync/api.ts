@@ -250,9 +250,22 @@ export class HabiticaClient implements types.HabiticaAPI {
 
     async updateTask(task_data: types.RecursePartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
     	// Update a task in Habitica
+        util.log(`Updating task data: ${JSON.stringify(task_data)}`);
     	const url = this.buildApiUrl(`tasks/${task_data.id}`, 3);
     	const headers = this._defaultJSONHeaders();
     	util.log(`Updating task in Habitica: ${url}`);
+        // First, score if completed field is present
+        if ('completed' in task_data) {
+            const scoreUrl = this.buildApiUrl(`tasks/${task_data.id}/score/${task_data.completed ? 'up' : 'down'}`, 3);
+            util.log(`Scoring task in Habitica: ${scoreUrl}`);
+            const result = await this.callWhenRateLimitAllows(
+                () => fetch(scoreUrl, { method: 'POST', headers })
+            ).then((data: types.HabiticaResponse) => {
+                // Presume failure is caught by _handleResponse
+                return data.data as types.HabiticaTask;
+            });
+            console.log(`Scored task ${task_data.id} as completed=${task_data.completed}: ${JSON.stringify(result)}`);
+        }
         return this.callWhenRateLimitAllows(
             () => fetch(url, { method: 'PUT', headers, body: JSON.stringify(task_data) })
     	).then((data: types.HabiticaResponse) => {
