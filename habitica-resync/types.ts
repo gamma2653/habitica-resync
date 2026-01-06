@@ -80,6 +80,13 @@ export type HabiticaTaskMap = {
 }
 export const EXCLUDED_TASK_TYPES: Set<TaskType> = new Set(['completedTodo', 'reward']);
 
+export type AttributeBreakdown = {
+	str: number;
+	con: number;
+	int: number;
+	per: number;
+}
+
 export type HabiticaUserStats = {
 	hp: number;
 	mp: number;
@@ -95,6 +102,18 @@ export type HabiticaUserStats = {
 	toNextLevel: number;
 	maxHealth: number;
 	maxMP: number;
+	buffs?: {
+		str: number;
+		con: number;
+		int: number;
+		per: number;
+		stealth?: number;
+		streaks?: number;
+		snowball?: number;
+		spookySparkles?: number;
+		shinySeed?: number;
+		seafoam?: number;
+	};
 }
 
 export type HabiticaUser = {

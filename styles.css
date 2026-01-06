@@ -292,6 +292,8 @@
     color: var(--text-normal);
     font-size: 0.9rem;
     cursor: pointer;
+    line-height: 1.5;
+    min-height: 2.5rem;
 }
 
 .control-select:focus {
