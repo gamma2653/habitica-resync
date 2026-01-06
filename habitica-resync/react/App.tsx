@@ -1,7 +1,7 @@
 // import { useHabiticaResyncApp, SUBSCRIBER_ID } from "./ctx";
-import { HabitView } from "./features/habit";
-import { DailyView } from "./features/daily";
-import { TodoView } from "./features/todo";
+import { HabitView } from "./features/tasks/habit";
+import { DailyView } from "./features/tasks/daily";
+import { TodoView } from "./features/tasks/todo";
 import { NavBar } from "./features/nav";
 import * as React from "react";
 
