@@ -321,4 +321,16 @@ export class HabiticaClient implements types.HabiticaAPI {
             await this.updateOrCreateTask(task);
         }
     }
+
+    async retrieveUser(): Promise<types.HabiticaUser | null> {
+        // Retrieve user data including stats
+        const url = this.buildApiUrl('user', 3);
+        const headers = this._defaultJSONHeaders();
+        util.log(`Retrieving user data from Habitica: ${url}`);
+        return this.callWhenRateLimitAllows(
+            () => fetch(url, { method: 'GET', headers })
+        ).then((data: types.HabiticaResponse) => {
+            return data.data as types.HabiticaUser;
+        });
+    }
 }

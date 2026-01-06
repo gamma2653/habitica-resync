@@ -80,9 +80,37 @@ export type HabiticaTaskMap = {
 }
 export const EXCLUDED_TASK_TYPES: Set<TaskType> = new Set(['completedTodo', 'reward']);
 
+export type HabiticaUserStats = {
+	hp: number;
+	mp: number;
+	exp: number;
+	gp: number;
+	lvl: number;
+	class?: string;
+	points?: number;
+	str?: number;
+	con?: number;
+	int?: number;
+	per?: number;
+	toNextLevel: number;
+	maxHealth: number;
+	maxMP: number;
+}
+
+export type HabiticaUser = {
+	id: string;
+	profile: {
+		name: string;
+	};
+	stats: HabiticaUserStats;
+	preferences: {
+		language?: string;
+	};
+}
+
 export type HabiticaResponse = {
 	success: boolean;
-	data: HabiticaTask[] | HabiticaTask;
+	data: HabiticaTask[] | HabiticaTask | HabiticaUser;
 }
 
 export interface HabiticaTaskRequest {

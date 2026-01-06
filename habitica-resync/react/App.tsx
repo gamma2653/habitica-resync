@@ -2,6 +2,7 @@
 import { HabitView } from "./features/tasks/habit";
 import { DailyView } from "./features/tasks/daily";
 import { TodoView } from "./features/tasks/todo";
+import { ProfileView } from "./features/profile";
 import { NavBar } from "./features/nav";
 import * as React from "react";
 
@@ -15,10 +16,11 @@ export const HabiticaResyncApp = () => {
   return (
     <div>
       <h3>Habitica Resync</h3>
-      <NavBar tabs={[['Habits', 'habit'], ['Dailys', 'daily'], ['Todos', 'todo']]} activeTabCallback={setActiveTab} />
+      <NavBar tabs={[['Habits', 'habit'], ['Dailys', 'daily'], ['Todos', 'todo'], ['Profile', 'profile']]} activeTabCallback={setActiveTab} />
       <HabitView active={activeTab === 'habit'} />
       <DailyView active={activeTab === 'daily'} />
       <TodoView active={activeTab === 'todo'} />
+      <ProfileView active={activeTab === 'profile'} />
     </div>
   );
 };
