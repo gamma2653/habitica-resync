@@ -21,6 +21,7 @@ export class HabiticaClient implements types.HabiticaAPI {
         reward: [],
         completedTodo: []
     };
+    cachedUser: types.HabiticaUser | null = null; // Cache for user data to minimize API requests
     eventListeners = {
         todoUpdated: util.newSubscriberEntry(),
         dailyUpdated: util.newSubscriberEntry(),
@@ -47,7 +48,7 @@ export class HabiticaClient implements types.HabiticaAPI {
      * @param subscriber_id The subscriber ID to use.
      * @param listener The listener function to call when the event is triggered.
      */
-    subscribe(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, listener: (tasks: types.HabiticaTask[]) => void): void {
+    subscribe<E extends types.HabiticaApiEvent>(event: E, subscriber_id: types.SubscriberID, listener: types.EventListener<E>): void {
         // Subscribe to Habitica API events
         util.log(`Subscribing to event: ${event}, subscriber_id: ${subscriber_id}`);
         this.eventListeners[event][subscriber_id].add(listener);
@@ -59,7 +60,7 @@ export class HabiticaClient implements types.HabiticaAPI {
      * @param subscriber_id The subscriber ID to use.
      * @param listener The listener function to remove.
      */
-    unsubscribe(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, listener: (tasks: types.HabiticaTask[]) => void): void {
+    unsubscribe<E extends types.HabiticaApiEvent>(event: E, subscriber_id: types.SubscriberID, listener: types.EventListener<E>): void {
         // Unsubscribe from Habitica API events
         this.eventListeners[event][subscriber_id].delete(listener);
     }
@@ -100,15 +101,15 @@ export class HabiticaClient implements types.HabiticaAPI {
      * @param subscriber_id The subscriber ID to unsubscribe.
      * @param fn The function to execute while unsubscribed.
      */
-    async performWhileUnsubscribed<T>(event: types.HabiticaApiEvent, subscriber_id: types.SubscriberID, awaitable: Promise<T>): Promise<T> {
+    async performWhileUnsubscribed<T, E extends types.HabiticaApiEvent>(event: E, subscriber_id: types.SubscriberID, awaitable: Promise<T>): Promise<T> {
         // util.log(`event: ${event}, subscriber_id: ${subscriber_id} - Performing while unsubscribed.`);
         const listeners = this.eventListeners[event][subscriber_id];
         listeners.forEach((listener) => {
-            this.unsubscribe(event, subscriber_id, listener);
+            this.unsubscribe(event, subscriber_id, listener as types.EventListener<E>);
         });
         const result = await awaitable;
         listeners.forEach((listener) => {
-            this.subscribe(event, subscriber_id, listener);
+            this.subscribe(event, subscriber_id, listener as types.EventListener<E>);
         });
         return result;
     }
@@ -270,9 +271,24 @@ export class HabiticaClient implements types.HabiticaAPI {
             util.log(`Scoring task in Habitica: ${scoreUrl}`);
             const result = await this.callWhenRateLimitAllows(
                 () => fetch(scoreUrl, { method: 'POST', headers })
-            ).then((data: types.HabiticaResponse) => {
+            ).then((response: types.HabiticaResponse) => {
+                // Check if response includes updated user stats (hp, mp, exp, gp, lvl)
+                if (this.cachedUser && (response.hp !== undefined || response.exp !== undefined)) {
+                    // Update cached user with new stats from score response
+                    this.cachedUser.stats = {
+                        ...this.cachedUser.stats,
+                        hp: response.hp ?? this.cachedUser.stats.hp,
+                        mp: response.mp ?? this.cachedUser.stats.mp,
+                        exp: response.exp ?? this.cachedUser.stats.exp,
+                        gp: response.gp ?? this.cachedUser.stats.gp,
+                        lvl: response.lvl ?? this.cachedUser.stats.lvl
+                    };
+                    // Emit profile update with refreshed stats
+                    util.log(`Emitting profile update from task scoring (delta: ${response.delta})`);
+                    this.emitProfile(this.cachedUser);
+                }
                 // Presume failure is caught by _handleResponse
-                return data.data as types.HabiticaTask;
+                return response.data as types.HabiticaTask;
             });
             console.log(`Scored task ${task_data.id} as completed=${task_data.completed}: ${JSON.stringify(result)}`);
         }
@@ -341,6 +357,7 @@ export class HabiticaClient implements types.HabiticaAPI {
             () => fetch(url, { method: 'GET', headers })
         ).then((data: types.HabiticaResponse) => {
             const user = data.data as types.HabiticaUser;
+            this.cachedUser = user; // Cache the user data
             this.emitProfile(user);
             return user;
         });

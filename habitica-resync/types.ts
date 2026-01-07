@@ -130,6 +130,13 @@ export type HabiticaUser = {
 export type HabiticaResponse = {
 	success: boolean;
 	data: HabiticaTask[] | HabiticaTask | HabiticaUser;
+	// Optional fields returned by score endpoint (task completion)
+	hp?: number;
+	mp?: number;
+	exp?: number;
+	gp?: number;
+	lvl?: number;
+	delta?: number; // HP/XP change amount
 }
 
 export interface HabiticaTaskRequest {
@@ -143,6 +150,12 @@ export const SUBSCRIBER_IDs = ['paneSync', 'noteSync'] as const;
 
 export type HabiticaApiEvent = typeof HABITICA_API_EVENTS[number];
 export type SubscriberID = typeof SUBSCRIBER_IDs[number];
+
+// Event listener types - maps event names to their listener signatures
+export type EventListener<E extends HabiticaApiEvent> =
+	E extends 'profileUpdated'
+		? (user: HabiticaUser) => void
+		: (tasks: HabiticaTask[]) => void;
 
 // Habitica API Interface
 export interface HabiticaAPI {

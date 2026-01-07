@@ -13,6 +13,7 @@ export const ProfileView = ({ active }: ViewProps) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Initial fetch and event subscription
     useEffect(() => {
         const fetchUser = async () => {
             try {
@@ -27,7 +28,16 @@ export const ProfileView = ({ active }: ViewProps) => {
             }
         };
 
+        // Fetch initial data
         fetchUser();
+
+        // Subscribe to profile updates (reuses data from task scoring responses)
+        habiticaClient.subscribe('profileUpdated', 'paneSync', setUser);
+
+        // Cleanup: unsubscribe when component unmounts
+        return () => {
+            habiticaClient.unsubscribe('profileUpdated', 'paneSync', setUser);
+        };
     }, [habiticaClient]);
 
     if (loading) {

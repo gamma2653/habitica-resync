@@ -276,10 +276,10 @@ export default class HabiticaResyncPlugin extends Plugin {
 				if (types.EXCLUDED_TASK_TYPES.has(type_)) {
 					continue;
 				}
-				this.client.subscribe(`${type_}Updated` as types.HabiticaApiEvent, 'noteSync', this.runOrNotify(this.handleHomogeneousUpdate.bind(this, type_)));
+				const eventName = `${type_}Updated` as Exclude<types.HabiticaApiEvent, 'profileUpdated'>;
+				this.client.subscribe(eventName, 'noteSync', this.runOrNotify(this.handleHomogeneousUpdate.bind(this, type_)));
 			}
 			// Subscribe to profile updates
-			// @ts-ignore - profileUpdated listener expects HabiticaUser, not HabiticaTask[]
 			this.client.subscribe('profileUpdated', 'noteSync', this.runOrNotify(this.handleProfileUpdate.bind(this)));
 		}
 	}
