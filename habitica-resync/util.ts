@@ -1,4 +1,4 @@
-import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings, RecursivePartial, TaskType } from './types';
+import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings, HabiticaUser, RecursivePartial, TaskType } from './types';
 // import { version as VERSION } from './manifest.json';
 
 /**
@@ -241,4 +241,59 @@ export const parseContentToTasks = (content: string, task_type: TaskType): Recur
         tasks.push(currentTask);
     }
     return tasks;
+}
+
+/**
+ * Converts a Habitica user profile to markdown format.
+ * @param user The Habitica user data.
+ * @param settings Settings for formatting (currently unused, but kept for consistency).
+ * @returns The markdown-formatted string for the user profile.
+ */
+export const profileToNoteLines = (user: HabiticaUser, settings: HabiticaTasksSettings): string => {
+    const lines: string[] = [];
+    const stats = user.stats;
+
+    // Header with name and level
+    lines.push(`# Profile: ${user.profile.name}`);
+    lines.push('');
+    lines.push(`**Level:** ${stats.lvl}`);
+    if (stats.class) {
+        lines.push(`**Class:** ${stats.class}`);
+    }
+    lines.push('');
+
+    // Stats section
+    lines.push('## Stats');
+    lines.push('');
+    lines.push(`- **Health:** ${Math.floor(stats.hp)}/${stats.maxHealth}`);
+    lines.push(`- **Mana:** ${Math.floor(stats.mp)}/${stats.maxMP}`);
+    lines.push(`- **Experience:** ${Math.floor(stats.exp)}/${stats.toNextLevel}`);
+    lines.push(`- **Gold:** ${stats.gp.toFixed(2)}`);
+    lines.push('');
+
+    // Attributes section
+    lines.push('## Attributes');
+    lines.push('');
+
+    const str = stats.str || 0;
+    const con = stats.con || 0;
+    const int = stats.int || 0;
+    const per = stats.per || 0;
+
+    const strBuff = stats.buffs?.str || 0;
+    const conBuff = stats.buffs?.con || 0;
+    const intBuff = stats.buffs?.int || 0;
+    const perBuff = stats.buffs?.per || 0;
+
+    lines.push(`- **Strength:** ${str}${strBuff > 0 ? ` (+${strBuff} from buffs)` : ''} = ${str + strBuff}`);
+    lines.push(`- **Constitution:** ${con}${conBuff > 0 ? ` (+${conBuff} from buffs)` : ''} = ${con + conBuff}`);
+    lines.push(`- **Intelligence:** ${int}${intBuff > 0 ? ` (+${intBuff} from buffs)` : ''} = ${int + intBuff}`);
+    lines.push(`- **Perception:** ${per}${perBuff > 0 ? ` (+${perBuff} from buffs)` : ''} = ${per + perBuff}`);
+
+    if (stats.points && stats.points > 0) {
+        lines.push('');
+        lines.push(`**Unallocated Points:** ${stats.points}`);
+    }
+
+    return lines.join('\n');
 }

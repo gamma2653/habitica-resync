@@ -63,9 +63,11 @@ export default class HabiticaResyncPlugin extends Plugin {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('swords', PLUGIN_NAME, async (_evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			new Notice(`${PLUGIN_NAME} icon clicked. Retrieving tasks...`);
-			await this.client.retrieveTaskMap();
-			// await this.retrieveHabiticaNotes();
+			if (this.settings.enableNotes) {
+				new Notice(`${PLUGIN_NAME}: Refreshing notes...`);
+				await this.client.retrieveTaskMap();
+				await this.client.retrieveUser();
+			}
 			if (this.settings.enablePane) {
 				await this.showPane();
 			}
@@ -116,6 +118,23 @@ export default class HabiticaResyncPlugin extends Plugin {
 			} else {
 				// Overwrite existing file
 				await this.app.vault.process(file, _ => habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
+			}
+		}
+	}
+
+	async handleProfileUpdate(user: types.HabiticaUser) {
+		const folderPath = this.getOrCreateHabiticaFolder();
+		if (this.settings.enableNotes) {
+			const filePath = `${folderPath}/profile.md`;
+			const file = this.app.vault.getFileByPath(filePath);
+			const content = util.profileToNoteLines(user, this.settings);
+
+			if (!file) {
+				// Create new file
+				await this.app.vault.create(filePath, content);
+			} else {
+				// Overwrite existing file
+				await this.app.vault.process(file, _ => content);
 			}
 		}
 	}
@@ -243,6 +262,7 @@ export default class HabiticaResyncPlugin extends Plugin {
 		this.initSubscriptions();
 		this.app.workspace.onLayoutReady(async () => {
 			await this.client.retrieveTaskMap();
+			await this.client.retrieveUser();
 		});
 	}
 
@@ -258,6 +278,9 @@ export default class HabiticaResyncPlugin extends Plugin {
 				}
 				this.client.subscribe(`${type_}Updated` as types.HabiticaApiEvent, 'noteSync', this.runOrNotify(this.handleHomogeneousUpdate.bind(this, type_)));
 			}
+			// Subscribe to profile updates
+			// @ts-ignore - profileUpdated listener expects HabiticaUser, not HabiticaTask[]
+			this.client.subscribe('profileUpdated', 'noteSync', this.runOrNotify(this.handleProfileUpdate.bind(this)));
 		}
 	}
 

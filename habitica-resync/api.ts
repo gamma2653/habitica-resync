@@ -25,7 +25,8 @@ export class HabiticaClient implements types.HabiticaAPI {
         todoUpdated: util.newSubscriberEntry(),
         dailyUpdated: util.newSubscriberEntry(),
         habitUpdated: util.newSubscriberEntry(),
-        taskUpdated: util.newSubscriberEntry()
+        taskUpdated: util.newSubscriberEntry(),
+        profileUpdated: util.newSubscriberEntry()
     };
     constructor(plugin: HabiticaResyncPlugin) {
         // Initialize with settings
@@ -68,6 +69,15 @@ export class HabiticaClient implements types.HabiticaAPI {
         types.SUBSCRIBER_IDs.forEach((subscriber_id) => {
             this.eventListeners[event][subscriber_id].forEach((listener) => {
                 listener(tasks);
+            });
+        });
+    }
+
+    emitProfile(user: types.HabiticaUser): void {
+        // Emit profile update event
+        types.SUBSCRIBER_IDs.forEach((subscriber_id) => {
+            this.eventListeners['profileUpdated'][subscriber_id].forEach((listener) => {
+                listener(user);
             });
         });
     }
@@ -330,7 +340,9 @@ export class HabiticaClient implements types.HabiticaAPI {
         return this.callWhenRateLimitAllows(
             () => fetch(url, { method: 'GET', headers })
         ).then((data: types.HabiticaResponse) => {
-            return data.data as types.HabiticaUser;
+            const user = data.data as types.HabiticaUser;
+            this.emitProfile(user);
+            return user;
         });
     }
 }

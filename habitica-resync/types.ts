@@ -138,7 +138,7 @@ export interface HabiticaTaskRequest {
 }
 
 // Event and Subscriber IDs
-export const HABITICA_API_EVENTS = ['todoUpdated', 'dailyUpdated', 'habitUpdated', 'taskUpdated'] as const;
+export const HABITICA_API_EVENTS = ['todoUpdated', 'dailyUpdated', 'habitUpdated', 'taskUpdated', 'profileUpdated'] as const;
 export const SUBSCRIBER_IDs = ['paneSync', 'noteSync'] as const;
 
 export type HabiticaApiEvent = typeof HABITICA_API_EVENTS[number];
