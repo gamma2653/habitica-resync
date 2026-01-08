@@ -1,6 +1,7 @@
 import { HabiticaTask, HabiticaAPI } from "../../../types";
 import { Dispatch, SetStateAction } from "react";
 import * as util from '../../../util';
+import { SUBSCRIBER_ID } from '../../ctx';
 
 type TaskCardProps = {
     task: HabiticaTask;
@@ -25,7 +26,12 @@ export const TaskCard = ({ task, habiticaClient, onUpdate, isHabit = false }: Ta
         onUpdate();
 
         try {
-            await habiticaClient.updateTask({ id: task.id, completed: newCompleted });
+            const eventName = `${task.type}Updated` as 'todoUpdated' | 'dailyUpdated' | 'habitUpdated';
+            await habiticaClient.performWhileUnsubscribed(
+                eventName,
+                SUBSCRIBER_ID,
+                habiticaClient.updateTask({ id: task.id, completed: newCompleted })
+            );
             util.log(`Updated task ${task.id} in Habitica`);
         } catch (err) {
             util.error(`Failed to update task ${task.id} in Habitica:`, err);
@@ -36,7 +42,11 @@ export const TaskCard = ({ task, habiticaClient, onUpdate, isHabit = false }: Ta
 
     const handleHabitScore = async (direction: 'up' | 'down') => {
         try {
-            await habiticaClient.updateTask({ id: task.id, completed: direction === 'up' });
+            await habiticaClient.performWhileUnsubscribed(
+                'habitUpdated',
+                SUBSCRIBER_ID,
+                habiticaClient.updateTask({ id: task.id, completed: direction === 'up' })
+            );
             util.log(`Scored habit ${task.id} ${direction}`);
             // Optionally refetch to get updated stats
         } catch (err) {
@@ -55,7 +65,12 @@ export const TaskCard = ({ task, habiticaClient, onUpdate, isHabit = false }: Ta
         onUpdate();
 
         try {
-            await habiticaClient.updateTask({ id: task.id, checklist: updatedChecklist });
+            const eventName = `${task.type}Updated` as 'todoUpdated' | 'dailyUpdated' | 'habitUpdated';
+            await habiticaClient.performWhileUnsubscribed(
+                eventName,
+                SUBSCRIBER_ID,
+                habiticaClient.updateTask({ id: task.id, checklist: updatedChecklist })
+            );
             util.log(`Updated checklist for task ${task.id}`);
         } catch (err) {
             util.error(`Failed to update checklist for task ${task.id}:`, err);

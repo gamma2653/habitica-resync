@@ -292,12 +292,21 @@ export class HabiticaClient implements types.HabiticaAPI {
             });
             console.log(`Scored task ${task_data.id} as completed=${task_data.completed}: ${JSON.stringify(result)}`);
         }
-        return this.callWhenRateLimitAllows(
+        const updatedTask = await this.callWhenRateLimitAllows(
             () => fetch(url, { method: 'PUT', headers, body: JSON.stringify(task_data) })
     	).then((data: types.HabiticaResponse) => {
             // TODO: Parse using zod
     		return data.data as types.HabiticaTask;
     	});
+        // Update allTasks cache and emit ALL tasks of that type to notify subscribers
+        if (updatedTask) {
+            util.addTasksToMap(this.allTasks, [updatedTask]);
+            // Emit all tasks of this type so the notes view has the complete list
+            const taskType = updatedTask.type;
+            const allTasksOfType = this.allTasks[taskType];
+            this._emitNonHomogeneous(allTasksOfType);
+        }
+        return updatedTask;
     }
 
     async createTask(task: RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {

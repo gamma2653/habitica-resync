@@ -169,6 +169,7 @@ export interface HabiticaAPI {
 	subscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;  // e.g., 'todoUpdated', 'dailyUpdated', etc.
 	unsubscribe(event: HabiticaApiEvent, subscriber_id: SubscriberID, listener: (tasks: HabiticaTask[]) => void): void;
 	emit(event: HabiticaApiEvent, tasks: HabiticaTask[]): void;
+	performWhileUnsubscribed<T, E extends HabiticaApiEvent>(event: E, subscriber_id: SubscriberID, awaitable: Promise<T>): Promise<T>;
 }
 
 
