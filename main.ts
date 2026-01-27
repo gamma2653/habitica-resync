@@ -1,7 +1,6 @@
 import type { App } from 'obsidian';
 import { Notice, Editor, Plugin, PluginSettingTab, Setting, MarkdownView, TFolder, WorkspaceLeaf } from 'obsidian';
 
-// import type { HabiticaTasksSettings, TaskType } from './habitica-resync/types';
 import * as types from './habitica-resync/types';
 import * as mounting from './habitica-resync/react/mounting';
 import * as habiticaAPI from './habitica-resync/api';
@@ -91,51 +90,26 @@ export default class HabiticaResyncPlugin extends Plugin {
 		} as T;
 	}
 
-	// async handleNotesUpdate(habiticaTasks: types.HabiticaTaskMap) {
 	async handleHomogeneousUpdate(type_: string, habiticaTasks: types.HabiticaTask[]) {
-		const folderPath = this.getOrCreateHabiticaFolder();
-		if (habiticaTasks.length === 0) {
-			return;
-		}
-		if (this.settings.enableNotes) {
-			for (const task of habiticaTasks) {
-				if (type_ !== task.type) {
-					util.warn(`Received tasks for type ${task.type} in handler for type ${type_}, skipping.`);
-					continue;
-				}
-				// Skip ignored types
-				if (types.EXCLUDED_TASK_TYPES.has(type_ as types.TaskType)) {  // Surprised TypeScript allows this cast
-					continue;
-				}
-			}
-			const filePath = `${folderPath}/${type_}.md`;
-			const file = this.app.vault.getFileByPath(filePath);
-			// util.log(`Updating Habitica notes for type ${type_} at path ${filePath}`);
-			// util.log(`File exists: ${file}`);
-			if (!file) {
-				// Create new file
-				await this.app.vault.create(filePath, habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
-			} else {
-				// Overwrite existing file
-				await this.app.vault.process(file, _ => habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n'));
-			}
-		}
+		if (habiticaTasks.length === 0 || !this.settings.enableNotes || types.EXCLUDED_TASK_TYPES.has(type_ as types.TaskType)) return;
+		const content = habiticaTasks.map(task => util.taskToNoteLines(task, this.settings)).join('\n\n---\n\n');
+		await this.writeToHabiticaFile(`${util.capitalize(type_)}.md`, content);
 	}
 
 	async handleProfileUpdate(user: types.HabiticaUser) {
-		const folderPath = this.getOrCreateHabiticaFolder();
-		if (this.settings.enableNotes) {
-			const filePath = `${folderPath}/profile.md`;
-			const file = this.app.vault.getFileByPath(filePath);
-			const content = util.profileToNoteLines(user, this.settings);
+		if (!this.settings.enableNotes) return;
+		const content = util.profileToNoteLines(user, this.settings);
+		await this.writeToHabiticaFile('Profile.md', content);
+	}
 
-			if (!file) {
-				// Create new file
-				await this.app.vault.create(filePath, content);
-			} else {
-				// Overwrite existing file
-				await this.app.vault.process(file, _ => content);
-			}
+	private async writeToHabiticaFile(fileName: string, content: string) {
+		const folderPath = this.getOrCreateHabiticaFolder();
+		const filePath = `${folderPath}/${fileName}`;
+		const file = this.app.vault.getFileByPath(filePath);
+		if (!file) {
+			await this.app.vault.create(filePath, content);
+		} else {
+			await this.app.vault.process(file, _ => content);
 		}
 	}
 
@@ -177,11 +151,6 @@ export default class HabiticaResyncPlugin extends Plugin {
 		}
 	}
 
-	attachCommands() {
-		// This adds a simple command that can be triggered anywhere
-		
-	}
-
 	/**
 	 * This function is called when the plugin is loaded
 	 * It is used to register various aspects of the plugin
@@ -212,8 +181,6 @@ export default class HabiticaResyncPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		this.attachRibbonButton();
-		// this.attachStatusBar();
-		this.attachCommands();
 		this.addSettingTab(new HabiticaResyncSettingTab(this.app, this));
 		this.addViews();
 		this.detectTasksPlugin();

@@ -171,8 +171,3 @@ export interface HabiticaAPI {
 	emit(event: HabiticaApiEvent, tasks: HabiticaTask[]): void;
 	performWhileUnsubscribed<T, E extends HabiticaApiEvent>(event: E, subscriber_id: SubscriberID, awaitable: Promise<T>): Promise<T>;
 }
-
-
-// export interface ContextView {
-// 	new (leaf: any, ctx: any): ContextView;
-// }

@@ -3,6 +3,47 @@ import { HabiticaUser } from "../../types";
 import { useHabiticaResyncApp } from "../ctx";
 import { ViewProps } from "./nav";
 
+type StatBarProps = {
+    emoji: string;
+    label: string;
+    value: number;
+    max: number;
+    barClass: string;
+};
+
+const StatBar = ({ emoji, label, value, max, barClass }: StatBarProps) => (
+    <div className="stat-row">
+        <div className="stat-label">{emoji} {label}:</div>
+        <div className="stat-bar-container">
+            <div className={`stat-bar ${barClass}`} style={{ width: `${(value / max) * 100}%` }}></div>
+        </div>
+        <div className="stat-text">{Math.floor(value)} / {max}</div>
+    </div>
+);
+
+type AttributeItemProps = {
+    emoji: string;
+    label: string;
+    base: number | undefined;
+    buff: number | undefined;
+};
+
+const AttributeItem = ({ emoji, label, base, buff }: AttributeItemProps) => {
+    if (base === undefined) return null;
+    const total = (base || 0) + (buff || 0);
+    return (
+        <div className="attribute-item">
+            <div className="attribute-label">{emoji} {label}:</div>
+            <div className="attribute-value">
+                {total}
+                {buff ? (
+                    <span className="attribute-breakdown"> ({base} + {buff})</span>
+                ) : null}
+            </div>
+        </div>
+    );
+};
+
 export const ProfileView = ({ active }: ViewProps) => {
     if (!active) {
         return null;
@@ -13,7 +54,6 @@ export const ProfileView = ({ active }: ViewProps) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Initial fetch and event subscription
     useEffect(() => {
         const fetchUser = async () => {
             try {
@@ -28,13 +68,10 @@ export const ProfileView = ({ active }: ViewProps) => {
             }
         };
 
-        // Fetch initial data
         fetchUser();
 
-        // Subscribe to profile updates (reuses data from task scoring responses)
         habiticaClient.subscribe('profileUpdated', 'paneSync', setUser);
 
-        // Cleanup: unsubscribe when component unmounts
         return () => {
             habiticaClient.unsubscribe('profileUpdated', 'paneSync', setUser);
         };
@@ -53,19 +90,6 @@ export const ProfileView = ({ active }: ViewProps) => {
     }
 
     const { stats, profile } = user;
-    const hpPercent = (stats.hp / stats.maxHealth) * 100;
-    const mpPercent = (stats.mp / stats.maxMP) * 100;
-    const expPercent = (stats.exp / stats.toNextLevel) * 100;
-
-    // Calculate total attributes: allocated points + buffs
-    const calculateTotal = (base: number | undefined, buff: number | undefined): number => {
-        return (base || 0) + (buff || 0);
-    };
-
-    const totalStr = calculateTotal(stats.str, stats.buffs?.str);
-    const totalCon = calculateTotal(stats.con, stats.buffs?.con);
-    const totalInt = calculateTotal(stats.int, stats.buffs?.int);
-    const totalPer = calculateTotal(stats.per, stats.buffs?.per);
 
     return (
         <div className="habitica-profile">
@@ -81,30 +105,9 @@ export const ProfileView = ({ active }: ViewProps) => {
             </div>
 
             <div className="profile-section stats-section">
-                <div className="stat-row">
-                    <div className="stat-label">❤️ Health:</div>
-                    <div className="stat-bar-container">
-                        <div className="stat-bar health-bar" style={{ width: `${hpPercent}%` }}></div>
-                    </div>
-                    <div className="stat-text">{Math.floor(stats.hp)} / {stats.maxHealth}</div>
-                </div>
-
-                <div className="stat-row">
-                    <div className="stat-label">✨ Mana:</div>
-                    <div className="stat-bar-container">
-                        <div className="stat-bar mana-bar" style={{ width: `${mpPercent}%` }}></div>
-                    </div>
-                    <div className="stat-text">{Math.floor(stats.mp)} / {stats.maxMP}</div>
-                </div>
-
-                <div className="stat-row">
-                    <div className="stat-label">⭐ Experience:</div>
-                    <div className="stat-bar-container">
-                        <div className="stat-bar exp-bar" style={{ width: `${expPercent}%` }}></div>
-                    </div>
-                    <div className="stat-text">{Math.floor(stats.exp)} / {stats.toNextLevel}</div>
-                </div>
-
+                <StatBar emoji="❤️" label="Health" value={stats.hp} max={stats.maxHealth} barClass="health-bar" />
+                <StatBar emoji="✨" label="Mana" value={stats.mp} max={stats.maxMP} barClass="mana-bar" />
+                <StatBar emoji="⭐" label="Experience" value={stats.exp} max={stats.toNextLevel} barClass="exp-bar" />
                 <div className="stat-row gold-row">
                     <div className="stat-label">💰 Gold:</div>
                     <div className="stat-text">{stats.gp.toFixed(2)}</div>
@@ -115,50 +118,10 @@ export const ProfileView = ({ active }: ViewProps) => {
                 <div className="profile-section attributes-section">
                     <h3>Attributes</h3>
                     <div className="attributes-grid">
-                        {stats.str !== undefined && (
-                            <div className="attribute-item">
-                                <div className="attribute-label">💪 Strength:</div>
-                                <div className="attribute-value">
-                                    {totalStr}
-                                    {stats.buffs?.str ? (
-                                        <span className="attribute-breakdown"> ({stats.str} + {stats.buffs.str})</span>
-                                    ) : null}
-                                </div>
-                            </div>
-                        )}
-                        {stats.con !== undefined && (
-                            <div className="attribute-item">
-                                <div className="attribute-label">🛡️ Constitution:</div>
-                                <div className="attribute-value">
-                                    {totalCon}
-                                    {stats.buffs?.con ? (
-                                        <span className="attribute-breakdown"> ({stats.con} + {stats.buffs.con})</span>
-                                    ) : null}
-                                </div>
-                            </div>
-                        )}
-                        {stats.int !== undefined && (
-                            <div className="attribute-item">
-                                <div className="attribute-label">🧠 Intelligence:</div>
-                                <div className="attribute-value">
-                                    {totalInt}
-                                    {stats.buffs?.int ? (
-                                        <span className="attribute-breakdown"> ({stats.int} + {stats.buffs.int})</span>
-                                    ) : null}
-                                </div>
-                            </div>
-                        )}
-                        {stats.per !== undefined && (
-                            <div className="attribute-item">
-                                <div className="attribute-label">👁️ Perception:</div>
-                                <div className="attribute-value">
-                                    {totalPer}
-                                    {stats.buffs?.per ? (
-                                        <span className="attribute-breakdown"> ({stats.per} + {stats.buffs.per})</span>
-                                    ) : null}
-                                </div>
-                            </div>
-                        )}
+                        <AttributeItem emoji="💪" label="Strength" base={stats.str} buff={stats.buffs?.str} />
+                        <AttributeItem emoji="🛡️" label="Constitution" base={stats.con} buff={stats.buffs?.con} />
+                        <AttributeItem emoji="🧠" label="Intelligence" base={stats.int} buff={stats.buffs?.int} />
+                        <AttributeItem emoji="👁️" label="Perception" base={stats.per} buff={stats.buffs?.per} />
                     </div>
                     {stats.points !== undefined && stats.points > 0 && (
                         <div className="unallocated-points">

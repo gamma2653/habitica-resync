@@ -1,25 +1,20 @@
-import { useState } from "react";
-
 type NavBarProps = {
     tabs: [string, string][];
-    activeTabCallback: (tabId: string) => void;
+    activeTab: string;
+    setActiveTab: (tabId: string) => void;
 }
 
 export type ViewProps = {
     active: boolean;
 }
 
-export const NavBar = ({ tabs, activeTabCallback }: NavBarProps) => {
-    const [activeTab, setActiveTab] = useState<string>('daily');
+export const NavBar = ({ tabs, activeTab, setActiveTab }: NavBarProps) => {
     return (
         <nav className="habitica-resync-nav">
             <ul className="navbar-links">
                 {tabs.map(([label, id]) => (
                     <li key={id} className={activeTab === id ? 'active' : ''}>
-                        <button onClick={() => {
-                            setActiveTab(id);
-                            activeTabCallback(id);
-                        }}>
+                        <button onClick={() => setActiveTab(id)}>
                             {label}
                         </button>
                     </li>

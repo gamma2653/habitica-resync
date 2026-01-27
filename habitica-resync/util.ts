@@ -1,65 +1,17 @@
 import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings, HabiticaUser, RecursivePartial, TaskType } from './types';
 import { version as VERSION } from '../manifest.json';
 
-/**
- * Utility function for debugging.
- * Reveals the API structure for logging the types of keys in the response objects.
- * @param obj The object to analyze.
- * @returns A record mapping keys to their types.
- */
-const _revealObjectKeyTypes = (obj: object): Record<string, string> => {
-    const keyTypes: Record<string, string> = {};
-    for (const [key, value] of Object.entries(obj)) {
-        keyTypes[key] = typeof value;
-    }
-    return keyTypes;
-}
+const logWithLevel = (level: 'log' | 'warn' | 'error') =>
+    (message: string, ...optionalParams: any[]) =>
+        console[level](`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
 
-/**
- * Coalesces the key types from multiple objects.
- * If a key has different types across objects, it is marked as 'any'.
- * If a key is not present in all objects, it is marked as optional (i.e., type | undefined).
- * @param objects An array of records mapping keys to their types.
- * @returns A record mapping keys to their coalesced types.
- */
-const _coalesceObjectKeyTypes = (objects: Record<string, string>[]): Record<string, string> => {
-    const coalesced: Record<string, string> = {};
-    const keyCounts: Record<string, number> = {};
-    for (const obj of objects) {
-        for (const [key, type] of Object.entries(obj)) {
-            keyCounts[key] = (keyCounts[key] || 0) + 1;
-            if (coalesced[key]) {
-                if (coalesced[key] !== type) {
-                    coalesced[key] = 'any';
-                }
-            } else {
-                coalesced[key] = type;
-            }
-        }
-    }
-    // Mark keys that are not present in all objects as optional (i.e., type | undefined)
-    for (const key of Object.keys(coalesced)) {
-        if (keyCounts[key] < objects.length) {
-            coalesced[key] = `${coalesced[key]} | undefined`;
-        }
-    }
-    return coalesced;
-}
+export const log = logWithLevel('log');
+export const warn = logWithLevel('warn');
+export const error = logWithLevel('error');
 
-
-
-// const VERSION = "";
-
-export const log = (message: string, ...optionalParams: any[]) => {
-    console.log(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
-}
-
-export const warn = (message: string, ...optionalParams: any[]) => {
-    console.warn(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
-}
-
-export const error = (message: string, ...optionalParams: any[]) => {
-    console.error(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
+export const capitalize = (s: string): string => {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export const organizeHabiticaTasksByType = (tasks: HabiticaTask[]): HabiticaTaskMap => {
