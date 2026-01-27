@@ -36,18 +36,18 @@ main.ts                           # Plugin entry point and lifecycle
 habitica-resync/
   api.ts                          # HabiticaClient - API wrapper with rate limiting
   types.ts                        # TypeScript types and interfaces
-  util.ts                         # Utility functions for task conversion
+  util.ts                         # Utility functions for task conversion and logging
   react/
     mounting.tsx                  # React view registration
     App.tsx                       # Main React app component
-    ctx.tsx                       # React context
+    ctx.tsx                       # React context (app + client access)
     features/                     # React feature components
-      nav.tsx
+      nav.tsx                     # NavBar (controlled component, no internal state)
+      profile.tsx                 # ProfileView with StatBar and AttributeItem sub-components
       tasks/
-        daily.tsx
-        habit.tsx
-        todo.tsx
-        taskDisplay.tsx
+        taskViews.tsx             # createTaskView factory → DailyView, HabitView, TodoView
+        TaskCard.tsx              # Individual task card component
+        TaskList.tsx              # Task list with sorting and refresh
 ```
 
 ### Key Components
@@ -64,6 +64,7 @@ habitica-resync/
 - `runOrNotify()` wrapper ensures commands only run when properly configured
 - Dual-mode operation via `enableNotes` and `enablePane` settings
 - Event subscriptions are initialized in `initSubscriptions()`
+- `writeToHabiticaFile()` shared helper for create-or-overwrite file operations
 
 **Task Sync Flow**
 1. `HabiticaClient.retrieveTaskMap()` fetches tasks from Habitica API
@@ -98,8 +99,11 @@ Subscribe via `client.subscribe(event, subscriber_id, listener)`, unsubscribe ha
 
 React view mounted via `HabiticaResyncView` (extends Obsidian's `ItemView`):
 - Uses React 19 with strict mode
-- Context provides access to `app` and `habiticaClient`
+- Context (`ctx.tsx`) provides access to `app` and `habiticaClient`
 - View lifecycle: `onOpen()` creates root, `onClose()` unmounts
+- Task views use a `createTaskView` factory in `taskViews.tsx` (parameterized by event ID, task key, and title)
+- `NavBar` is a controlled component — `activeTab` state lives in `App.tsx`
+- `ProfileView` uses extracted `StatBar` and `AttributeItem` sub-components
 
 ## Development Notes
 
@@ -107,7 +111,7 @@ React view mounted via `HabiticaResyncView` (extends Obsidian's `ItemView`):
 
 Task types: `habit`, `daily`, `todo`, `reward`, `completedTodo`
 - `EXCLUDED_TASK_TYPES` filters out `completedTodo` and `reward` from file sync
-- Each non-excluded type gets its own markdown file (e.g., `todo.md`)
+- Each non-excluded type gets its own capitalized markdown file (e.g., `Todo.md`)
 
 ### Settings Validation
 
