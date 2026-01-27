@@ -1,6 +1,6 @@
 {
 	"name": "habitica-resync",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "This is a plugin to integrate Habitica tasks with the Obsidian Tasks plugin.",
 	"main": "habitica-resync/main.js",
 	"scripts": {

@@ -1,5 +1,5 @@
 import type { HabiticaTask, HabiticaTaskMap, HabiticaTasksSettings, HabiticaUser, RecursivePartial, TaskType } from './types';
-// import { version as VERSION } from './manifest.json';
+import { version as VERSION } from '../manifest.json';
 
 /**
  * Utility function for debugging.
@@ -48,7 +48,7 @@ const _coalesceObjectKeyTypes = (objects: Record<string, string>[]): Record<stri
 
 
 
-const VERSION = "";
+// const VERSION = "";
 
 export const log = (message: string, ...optionalParams: any[]) => {
     console.log(`[Habitica Resync v${VERSION}] ${message}`, ...optionalParams);
