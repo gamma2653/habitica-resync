@@ -17,7 +17,6 @@ export const TaskList = ({ tasks, habiticaClient, onRefresh, isRefreshing, taskT
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortOption>('default');
     const [filterBy, setFilterBy] = useState<FilterOption>('all');
-    const [forceUpdate, setForceUpdate] = useState(0);
 
     const filteredAndSortedTasks = useMemo(() => {
         let result = [...tasks];
@@ -70,10 +69,6 @@ export const TaskList = ({ tasks, habiticaClient, onRefresh, isRefreshing, taskT
 
         return { total, completed, active, completionRate };
     }, [tasks]);
-
-    const handleUpdate = () => {
-        setForceUpdate(prev => prev + 1);
-    };
 
     return (
         <div className="task-list-container">
@@ -174,7 +169,6 @@ export const TaskList = ({ tasks, habiticaClient, onRefresh, isRefreshing, taskT
                             key={task.id}
                             task={task}
                             habiticaClient={habiticaClient}
-                            onUpdate={handleUpdate}
                             isHabit={taskType === 'habit'}
                         />
                     ))

@@ -22,6 +22,15 @@ export class HabiticaClient implements types.HabiticaAPI {
         completedTodo: []
     };
     cachedUser: types.HabiticaUser | null = null; // Cache for user data to minimize API requests
+    // Per-task debounce state: tracks pending UI-initiated updates
+    _taskPending: Map<string, {
+        timer: ReturnType<typeof setTimeout>;
+        version: number;
+        payload: types.RecursePartialExcept<types.HabiticaTask, 'id'>;
+        originalTask: types.HabiticaTask;
+    }> = new Map();
+    // Monotonically-increasing version counter per task; never resets
+    _taskVersionCounters: Map<string, number> = new Map();
     eventListeners = {
         todoUpdated: util.newSubscriberEntry(),
         dailyUpdated: util.newSubscriberEntry(),
@@ -112,6 +121,11 @@ export class HabiticaClient implements types.HabiticaAPI {
             this.subscribe(event, subscriber_id, listener as types.EventListener<E>);
         });
         return result;
+    }
+
+    setTaskInCache(task: types.HabiticaTask): void {
+        util.addTasksToMap(this.allTasks, [task]);
+        this._emitNonHomogeneous(this.allTasks[task.type]);
     }
 
     async performWhileAllUnsubscribed<T>(subscriber_id: types.SubscriberID, awaitable: Promise<T>): Promise<T> {
@@ -259,8 +273,8 @@ export class HabiticaClient implements types.HabiticaAPI {
         });
     }
 
-    async updateTask(task_data: types.RecursePartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
-    	// Update a task in Habitica
+    async _doUpdateTask(task_data: types.RecursePartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
+        // Internal: makes the scoring + PUT API calls only — does NOT touch allTasks or emit events
         util.log(`Updating task data: ${JSON.stringify(task_data)}`);
     	const url = this.buildApiUrl(`tasks/${task_data.id}`, 3);
     	const headers = this._defaultJSONHeaders();
@@ -292,13 +306,17 @@ export class HabiticaClient implements types.HabiticaAPI {
             });
             console.log(`Scored task ${task_data.id} as completed=${task_data.completed}: ${JSON.stringify(result)}`);
         }
-        const updatedTask = await this.callWhenRateLimitAllows(
+        return this.callWhenRateLimitAllows(
             () => fetch(url, { method: 'PUT', headers, body: JSON.stringify(task_data) })
     	).then((data: types.HabiticaResponse) => {
             // TODO: Parse using zod
     		return data.data as types.HabiticaTask;
     	});
-        // Update allTasks cache and emit ALL tasks of that type to notify subscribers
+    }
+
+    async updateTask(task_data: types.RecursePartialExcept<types.HabiticaTask, 'id'>): Promise<types.HabiticaTask | null> {
+    	// Update a task in Habitica, update allTasks cache, and emit events to all subscribers
+        const updatedTask = await this._doUpdateTask(task_data);
         if (updatedTask) {
             util.addTasksToMap(this.allTasks, [updatedTask]);
             // Emit all tasks of this type so the notes view has the complete list
@@ -307,6 +325,75 @@ export class HabiticaClient implements types.HabiticaAPI {
             this._emitNonHomogeneous(allTasksOfType);
         }
         return updatedTask;
+    }
+
+    /**
+     * Apply an optimistic update immediately and debounce the API call.
+     * If multiple changes arrive within `debounceMs`, only the last is sent to the API.
+     * Stale server responses (superseded by a newer local change) are discarded.
+     * On failure, reverts to the pre-change state only if no newer change is pending.
+     */
+    scheduleTaskUpdate(
+        optimisticTask: types.HabiticaTask,
+        taskData: types.RecursePartialExcept<types.HabiticaTask, 'id'>,
+        debounceMs = 500
+    ): void {
+        const id = taskData.id;
+        const existing = this._taskPending.get(id);
+
+        // Monotonically-increasing version: uniquely identifies each user action
+        const version = (this._taskVersionCounters.get(id) ?? 0) + 1;
+        this._taskVersionCounters.set(id, version);
+
+        // Snapshot the pre-optimistic server state for revert (only on first change in a window)
+        const originalTask = existing?.originalTask ??
+            this.allTasks[optimisticTask.type].find(t => t.id === id) ??
+            optimisticTask;
+
+        // Merge: later writes win for overlapping fields (e.g. rapid toggling)
+        const mergedPayload: types.RecursePartialExcept<types.HabiticaTask, 'id'> = {
+            ...(existing?.payload ?? {}),
+            ...taskData,
+        };
+
+        // Instant optimistic update — UI reflects the change before the API call
+        this.setTaskInCache(optimisticTask);
+
+        if (existing !== undefined) clearTimeout(existing.timer);
+
+        const timer = setTimeout(() => {
+            this._taskPending.delete(id);
+            this._flushTaskUpdate(id, mergedPayload, version, originalTask);
+        }, debounceMs);
+
+        this._taskPending.set(id, { timer, version, payload: mergedPayload, originalTask });
+    }
+
+    async _flushTaskUpdate(
+        id: string,
+        taskData: types.RecursePartialExcept<types.HabiticaTask, 'id'>,
+        version: number,
+        originalTask: types.HabiticaTask
+    ): Promise<void> {
+        try {
+            const result = await this._doUpdateTask(taskData);
+            const currentVersion = this._taskVersionCounters.get(id) ?? 0;
+            if (currentVersion === version && result) {
+                // This is still the latest response — commit it
+                util.addTasksToMap(this.allTasks, [result]);
+                this._emitNonHomogeneous(this.allTasks[result.type]);
+                util.log(`Flushed task update for ${id} (v${version})`);
+            } else {
+                util.log(`Discarding stale API response for ${id} (response v${version}, current v${currentVersion})`);
+            }
+        } catch (err) {
+            util.error(`Failed to flush task update for ${id}:`, err);
+            const currentVersion = this._taskVersionCounters.get(id) ?? 0;
+            if (currentVersion === version) {
+                // No newer change in flight — safe to revert to pre-optimistic state
+                this.setTaskInCache(originalTask);
+            }
+        }
     }
 
     async createTask(task: RecursivePartial<types.HabiticaTask>): Promise<types.HabiticaTask | null> {

@@ -31,8 +31,7 @@ const createTaskView = ({ eventId, taskKey, title }: TaskViewConfig) => {
         const handleRefresh = async () => {
             setIsRefreshing(true);
             try {
-                const taskMap = await habiticaClient.retrieveTaskMap();
-                setTasks(taskMap[taskKey]);
+                await habiticaClient.retrieveTaskMap();
             } catch (err) {
                 console.error(`Failed to refresh ${title.toLowerCase()}:`, err);
             } finally {

@@ -1,12 +1,9 @@
 import { HabiticaTask, HabiticaAPI } from "../../../types";
-import { Dispatch, SetStateAction } from "react";
 import * as util from '../../../util';
-import { SUBSCRIBER_ID } from '../../ctx';
 
 type TaskCardProps = {
     task: HabiticaTask;
     habiticaClient: HabiticaAPI;
-    onUpdate: () => void;
     isHabit?: boolean;
 }
 
@@ -17,64 +14,37 @@ const PRIORITY_LABELS: Record<number, { label: string; emoji: string; class: str
     2: { label: 'Hard', emoji: '⏫', class: 'priority-hard' },
 };
 
-export const TaskCard = ({ task, habiticaClient, onUpdate, isHabit = false }: TaskCardProps) => {
+export const TaskCard = ({ task, habiticaClient, isHabit = false }: TaskCardProps) => {
     const priorityInfo = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[1];
 
-    const handleCheckboxChange = async () => {
+    const handleCheckboxChange = () => {
         const newCompleted = !task.completed;
-        task.completed = newCompleted;
-        onUpdate();
-
-        try {
-            const eventName = `${task.type}Updated` as 'todoUpdated' | 'dailyUpdated' | 'habitUpdated';
-            await habiticaClient.performWhileUnsubscribed(
-                eventName,
-                SUBSCRIBER_ID,
-                habiticaClient.updateTask({ id: task.id, completed: newCompleted })
-            );
-            util.log(`Updated task ${task.id} in Habitica`);
-        } catch (err) {
-            util.error(`Failed to update task ${task.id} in Habitica:`, err);
-            task.completed = !newCompleted;
-            onUpdate();
-        }
+        habiticaClient.scheduleTaskUpdate(
+            { ...task, completed: newCompleted },
+            { id: task.id, completed: newCompleted }
+        );
     };
 
     const handleHabitScore = async (direction: 'up' | 'down') => {
         try {
-            await habiticaClient.performWhileUnsubscribed(
-                'habitUpdated',
-                SUBSCRIBER_ID,
-                habiticaClient.updateTask({ id: task.id, completed: direction === 'up' })
-            );
+            await habiticaClient.updateTask({ id: task.id, completed: direction === 'up' });
             util.log(`Scored habit ${task.id} ${direction}`);
-            // Optionally refetch to get updated stats
         } catch (err) {
             util.error(`Failed to score habit ${task.id}:`, err);
         }
     };
 
-    const handleChecklistChange = async (index: number) => {
+    const handleChecklistChange = (index: number) => {
         if (!task.checklist) return;
 
         const updatedChecklist = task.checklist.map((item, i) =>
             i === index ? { ...item, completed: !item.completed } : item
         );
 
-        task.checklist = updatedChecklist;
-        onUpdate();
-
-        try {
-            const eventName = `${task.type}Updated` as 'todoUpdated' | 'dailyUpdated' | 'habitUpdated';
-            await habiticaClient.performWhileUnsubscribed(
-                eventName,
-                SUBSCRIBER_ID,
-                habiticaClient.updateTask({ id: task.id, checklist: updatedChecklist })
-            );
-            util.log(`Updated checklist for task ${task.id}`);
-        } catch (err) {
-            util.error(`Failed to update checklist for task ${task.id}:`, err);
-        }
+        habiticaClient.scheduleTaskUpdate(
+            { ...task, checklist: updatedChecklist },
+            { id: task.id, checklist: updatedChecklist }
+        );
     };
 
     const formatDate = (dateStr?: string) => {
